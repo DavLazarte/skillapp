@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── USUARIOS ───────────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  password     String
+  role         String    // "coach" | "alumno"
+  nombre       String
+  avatar       String?
+
+  // Solo coach
+  gimnasio     String?
+
+  // Solo alumno
+  estado       String?   // "activo" | "pausado" | "inactivo"
+  cuota        Float?
+  vencimiento  DateTime?
+  telefono     String?
+  fechaInicio  DateTime? @default(now())
+
+  // Relaciones
+  rms          RM[]
+  comentarios  Comentario[]
+  pagos        Pago[]
+  asistencias  Asistencia[]
+  planes       AlumnoPlan[]
+}
+
+// ─── TIPOS DE PLAN ───────────────────────────────────────────────────────────
+
+model TipoPlan {
+  id          String      @id @default(cuid())
+  nombre      String
+  descripcion String?
+  color       String      @default("#f97316")
+  icono       String      @default("dumbbell")
+  semanas     Semana[]
+  alumnos     AlumnoPlan[]
+}
+
+// Tabla intermedia alumno ↔ plan
+model AlumnoPlan {
+  id         String   @id @default(cuid())
+  userId     String
+  tipoPlanId String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipoPlan   TipoPlan @relation(fields: [tipoPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tipoPlanId])
+}
+
+// ─── PLANIFICACIÓN ───────────────────────────────────────────────────────────
+
+model Semana {
+  id          String   @id @default(cuid())
+  titulo      String
+  numero      Int
+  estado      String   // "planificacion" | "en-curso" | "finalizado"
+  fechaInicio DateTime
+  tipoPlanId  String
+  tipoPlan    TipoPlan @relation(fields: [tipoPlanId], references: [id], onDelete: Cascade)
+  dias        Dia[]
+}
+
+model Dia {
+  id          String      @id @default(cuid())
+  semanaId    String
+  semana      Semana      @relation(fields: [semanaId], references: [id], onDelete: Cascade)
+  nombre      String      // "Lunes" | "Martes" | "Miércoles" | "Jueves" | "Viernes" | "Sábado"
+  descanso    Boolean     @default(false)
+  contenido   String      @default("")
+  orden       Int         @default(0)
+  links       Link[]
+  asistencias Asistencia[]
+}
+
+model Link {
+  id     String @id @default(cuid())
+  diaId  String
+  dia    Dia    @relation(fields: [diaId], references: [id], onDelete: Cascade)
+  titulo String
+  url    String
+}
+
+// ─── REGISTROS ───────────────────────────────────────────────────────────────
+
+model RM {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ejercicio String
+  kg        Float
+  fecha     DateTime @default(now())
+}
+
+model Comentario {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  semanaNumero Int
+  diaNombre    String
+  texto        String
+  fecha        DateTime @default(now())
+  rol          String   // "coach" | "alumno"
+}
+
+model Pago {
+  id     String   @id @default(cuid())
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fecha  DateTime @default(now())
+  monto  Float
+  estado String   // "pagado" | "pendiente" | "vencido"
+  metodo String
+  nota   String?
+}
+
+model Asistencia {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  diaId      String
+  dia        Dia      @relation(fields: [diaId], references: [id], onDelete: Cascade)
+  completado Boolean  @default(false)
+  fecha      DateTime @default(now())
+
+  @@unique([userId, diaId])
+}
