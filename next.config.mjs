@@ -13,7 +13,6 @@ const nextConfig = {
     "@libsql/client",
     "@prisma/adapter-libsql",
     "@prisma/client",
-    "prisma",
   ],
 }
 
