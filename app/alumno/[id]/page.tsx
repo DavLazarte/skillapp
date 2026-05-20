@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db"
 import { notFound } from "next/navigation"
 import { WorkoutDashboard } from "@/components/student/workout-dashboard"
 
+export const dynamic = "force-dynamic"
+
 export default async function StudentPlanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   

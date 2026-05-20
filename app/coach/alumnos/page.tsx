@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db"
 import { AlumnosView } from "@/components/coach/alumnos-view"
 
+export const dynamic = "force-dynamic"
+
 export default async function AlumnosPage() {
   const [alumnos, planes] = await Promise.all([
     prisma.user.findMany({

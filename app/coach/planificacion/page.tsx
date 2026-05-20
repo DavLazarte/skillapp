@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db"
 import { KanbanBoard } from "@/components/coach/kanban-board"
 
+export const dynamic = "force-dynamic"
+
 export default async function PlanificacionPage() {
   const [planes, semanas] = await Promise.all([
     prisma.tipoPlan.findMany({ orderBy: { nombre: "asc" } }),

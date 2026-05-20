@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db"
 import { PagosView } from "@/components/coach/pagos-view"
 
+export const dynamic = "force-dynamic"
+
 export default async function PagosPage() {
   const [pagos, alumnos] = await Promise.all([
     prisma.pago.findMany({
