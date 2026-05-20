@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db"
 import { notFound } from "next/navigation"
 import { StudentRMsView } from "@/components/student/student-rms-view"
 
+export const dynamic = "force-dynamic"
+
 export default async function StudentRMsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   

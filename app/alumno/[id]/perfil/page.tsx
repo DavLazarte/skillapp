@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db"
 import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
+export const dynamic = "force-dynamic"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarCircle } from "@/components/shared/avatar-circle"
 import { Mail, Phone, Calendar, CreditCard } from "lucide-react"

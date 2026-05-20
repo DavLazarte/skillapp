@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db"
 import { CoachDashboardView } from "@/components/coach/coach-dashboard-view"
 
+export const dynamic = "force-dynamic"
+
 export default async function CoachDashboardPage() {
   const alumnos = await prisma.user.findMany({
     where: { role: "alumno" },
