@@ -208,9 +208,9 @@ export async function updateDia(id: string, data: { contenido?: string; descanso
 
 export async function addLinkToDia(diaId: string, titulo: string, url: string) {
   try {
-    await prisma.link.create({ data: { diaId, titulo, url } })
+    const link = await prisma.link.create({ data: { diaId, titulo, url } })
     revalidatePath("/coach/planificacion")
-    return { success: true }
+    return { success: true, link }
   } catch {
     return { success: false, error: "Error al agregar el link" }
   }

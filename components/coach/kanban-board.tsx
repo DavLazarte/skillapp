@@ -25,7 +25,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities"
 import {
   Plus, GripVertical, Pencil, Trash2, X, ExternalLink,
-  Link as LinkIcon, Eye, EyeOff, ChevronRight,
+  Link as LinkIcon, Eye, EyeOff, ChevronRight, Bold, Italic, List
 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -35,6 +35,7 @@ import {
   deleteSemana, updateDia, addLinkToDia, deleteLinkFromDia,
 } from "@/lib/actions"
 import { toast } from "sonner"
+import React from "react"
 
 type Link = { id: string; titulo: string; url: string }
 type Dia = { id: string; nombre: string; descanso: boolean; contenido: string; orden: number; links: Link[] }
@@ -178,42 +179,86 @@ function WeekCard({
 
 // ─── Week Editor Sheet ───────────────────────────────────────────────────────
 function WeekEditor({
-  semana, onClose, onDelete,
+  semana, onClose, onDelete, onUpdate
 }: {
-  semana: Semana; onClose: () => void; onDelete: (id: string) => void
+  semana: Semana; onClose: () => void; onDelete: (id: string) => void; onUpdate: (s: Semana) => void
 }) {
   const [titulo, setTitulo] = useState(semana.titulo)
   const [selectedDay, setSelectedDay] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
+  const [isUpdatingHeader, setIsUpdatingHeader] = useState(false)
+  const [isAddingLink, setIsAddingLink] = useState(false)
+  const [deletingLinkId, setDeletingLinkId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [newLinkTitulo, setNewLinkTitulo] = useState("")
   const [newLinkUrl, setNewLinkUrl] = useState("")
+  
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null)
 
   const dia = semana.dias[selectedDay]
 
   const saveTitulo = async () => {
     if (titulo === semana.titulo) return
+    setIsUpdatingHeader(true)
     const r = await updateSemana(semana.id, { titulo })
-    if (!r.success) toast.error(r.error)
+    setIsUpdatingHeader(false)
+    if (r.success) {
+      toast.success("Título actualizado")
+      onUpdate({ ...semana, titulo })
+    } else toast.error(r.error)
+  }
+
+  const saveFechaInicio = async (newFecha: string) => {
+    setIsUpdatingHeader(true)
+    const r = await updateSemana(semana.id, { fechaInicio: newFecha })
+    setIsUpdatingHeader(false)
+    if (r.success) {
+      toast.success("Fecha de inicio actualizada")
+      onUpdate({ ...semana, fechaInicio: new Date(newFecha + "T12:00:00") }) // Avoid timezone shift
+    } else toast.error(r.error)
   }
 
   const saveDia = async (field: "contenido" | "descanso", value: string | boolean) => {
     setIsSaving(true)
     const r = await updateDia(dia.id, { [field]: value })
     setIsSaving(false)
-    if (!r.success) toast.error(r.error)
+    if (r.success) {
+      toast.success(field === "contenido" ? "Planificación guardada" : "Día actualizado")
+      const updatedSemana = { ...semana }
+      updatedSemana.dias[selectedDay] = { ...updatedSemana.dias[selectedDay], [field]: value }
+      onUpdate(updatedSemana)
+    } else toast.error(r.error)
   }
 
   const handleAddLink = async () => {
     if (!newLinkTitulo || !newLinkUrl) return
+    setIsAddingLink(true)
     const r = await addLinkToDia(dia.id, newLinkTitulo, newLinkUrl)
-    if (r.success) { setNewLinkTitulo(""); setNewLinkUrl("") }
-    else toast.error(r.error)
+    setIsAddingLink(false)
+    if (r.success && r.link) { 
+      setNewLinkTitulo("")
+      setNewLinkUrl("")
+      toast.success("Link agregado correctamente")
+      const updatedSemana = { ...semana }
+      const updatedDia = { ...updatedSemana.dias[selectedDay] }
+      updatedDia.links = [...updatedDia.links, r.link]
+      updatedSemana.dias[selectedDay] = updatedDia
+      onUpdate(updatedSemana)
+    } else toast.error(r.error || "Error al agregar el link")
   }
 
   const handleDeleteLink = async (linkId: string) => {
+    setDeletingLinkId(linkId)
     const r = await deleteLinkFromDia(linkId)
-    if (!r.success) toast.error(r.error)
+    setDeletingLinkId(null)
+    if (r.success) {
+      toast.success("Link eliminado")
+      const updatedSemana = { ...semana }
+      const updatedDia = { ...updatedSemana.dias[selectedDay] }
+      updatedDia.links = updatedDia.links.filter(l => l.id !== linkId)
+      updatedSemana.dias[selectedDay] = updatedDia
+      onUpdate(updatedSemana)
+    } else toast.error(r.error)
   }
 
   const handleDelete = async () => {
@@ -221,22 +266,66 @@ function WeekEditor({
     if (r.success) { onDelete(semana.id); onClose() }
     else toast.error(r.error)
   }
+  
+  const insertFormatting = (prefix: string, suffix: string = "") => {
+    const el = textareaRef.current
+    if (!el) return
+
+    const start = el.selectionStart
+    const end = el.selectionEnd
+    const currentVal = el.value
+
+    const textBefore = currentVal.substring(0, start)
+    const textSelected = currentVal.substring(start, end)
+    const textAfter = currentVal.substring(end)
+
+    const insertion = textSelected || "texto"
+    const newVal = textBefore + prefix + insertion + suffix + textAfter
+
+    el.value = newVal
+    saveDia("contenido", newVal)
+    
+    setTimeout(() => {
+      el.focus()
+      el.setSelectionRange(start + prefix.length, start + prefix.length + insertion.length)
+    }, 0)
+  }
 
   return (
     <div className="p-6 flex flex-col gap-4">
       <SheetHeader className="mb-2">
         <SheetTitle asChild>
-          <Input
-            value={titulo}
-            onChange={e => setTitulo(e.target.value)}
-            onBlur={saveTitulo}
-            className="text-lg font-bold bg-secondary/50 border-0 focus-visible:ring-1"
-          />
+          <div className="flex flex-col gap-2 relative">
+            {isUpdatingHeader && (
+              <span className="absolute -top-5 right-0 text-xs font-medium text-primary flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                Guardando...
+              </span>
+            )}
+            <Input
+              value={titulo}
+              onChange={e => setTitulo(e.target.value)}
+              onBlur={saveTitulo}
+              className="text-lg font-bold bg-secondary/50 border-0 focus-visible:ring-1"
+            />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Inicia el:</span>
+              <Input
+                type="date"
+                defaultValue={format(new Date(semana.fechaInicio), "yyyy-MM-dd")}
+                onBlur={e => {
+                  if (e.target.value !== format(new Date(semana.fechaInicio), "yyyy-MM-dd")) {
+                    saveFechaInicio(e.target.value)
+                  }
+                }}
+                className="h-7 w-36 text-xs bg-secondary/50 border-0"
+              />
+              <span className="text-xs text-muted-foreground ml-auto">
+                Plan: <span style={{ color: semana.tipoPlan.color }}>{semana.tipoPlan.nombre}</span>
+              </span>
+            </div>
+          </div>
         </SheetTitle>
-        <p className="text-xs text-muted-foreground">
-          {format(new Date(semana.fechaInicio), "d 'de' MMMM yyyy", { locale: es })} ·
-          Plan: <span style={{ color: semana.tipoPlan.color }}>{semana.tipoPlan.nombre}</span>
-        </p>
       </SheetHeader>
 
       {/* Day Tabs */}
@@ -276,16 +365,48 @@ function WeekEditor({
           {!dia.descanso ? (
             <>
               <div className="space-y-1.5">
-                <Label>Contenido del día</Label>
-                <Textarea
-                  defaultValue={dia.contenido}
-                  onBlur={e => saveDia("contenido", e.target.value)}
-                  placeholder={"**Fuerza principal**\n5x5 Back Squat @ 75%\n\n**WOD**\n21-15-9 Thrusters / Pull-ups"}
-                  className="min-h-[180px] bg-secondary/50 font-mono text-sm"
-                  disabled={isSaving}
-                />
+                <div className="flex items-center justify-between">
+                  <Label>Contenido del día</Label>
+                  <div className="flex items-center gap-1 bg-secondary/50 rounded-md p-1">
+                    <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={() => insertFormatting("**", "**")} title="Negrita">
+                      <Bold className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={() => insertFormatting("*", "*")} title="Cursiva">
+                      <Italic className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={() => insertFormatting("- ")} title="Lista">
+                      <List className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Textarea con overlay de guardado */}
+                <div className="relative">
+                  <Textarea
+                    key={dia.id}
+                    ref={textareaRef}
+                    defaultValue={dia.contenido}
+                    onBlur={e => {
+                      if (e.target.value !== dia.contenido) {
+                        saveDia("contenido", e.target.value)
+                      }
+                    }}
+                    placeholder={"**Fuerza principal**\n5x5 Back Squat @ 75%\n\n**WOD**\n21-15-9 Thrusters / Pull-ups"}
+                    className="min-h-[180px] bg-secondary/30 font-mono text-sm shadow-inner"
+                    disabled={isSaving}
+                  />
+                  {isSaving && (
+                    <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] rounded-md flex items-center justify-center pointer-events-none">
+                      <div className="flex items-center gap-2 bg-card border border-border px-4 py-2 rounded-full shadow-lg">
+                        <span className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                        <span className="text-sm font-semibold">Guardando planificación...</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <p className="text-xs text-muted-foreground">
-                  **texto** = negrita · - ítem = lista · *texto* = cursiva
+                  Se guarda automáticamente al salir del campo · Usá los botones para dar formato
                 </p>
               </div>
 
@@ -300,19 +421,25 @@ function WeekEditor({
                         {l.titulo}
                       </a>
                     </div>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 hover:text-destructive"
-                      onClick={() => handleDeleteLink(l.id)}>
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
+                    {deletingLinkId === l.id ? (
+                      <div className="h-7 w-7 flex items-center justify-center">
+                        <span className="w-3 h-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                      </div>
+                    ) : (
+                      <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 hover:text-destructive"
+                        onClick={() => handleDeleteLink(l.id)}>
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
                   </div>
                 ))}
                 <div className="flex gap-2">
                   <Input placeholder="Título" value={newLinkTitulo} onChange={e => setNewLinkTitulo(e.target.value)}
-                    className="bg-secondary/50 text-sm" />
+                    className="bg-secondary/50 text-sm" disabled={isAddingLink} />
                   <Input placeholder="URL" value={newLinkUrl} onChange={e => setNewLinkUrl(e.target.value)}
-                    className="bg-secondary/50 text-sm" />
-                  <Button size="icon" variant="outline" onClick={handleAddLink}>
-                    <LinkIcon className="w-4 h-4" />
+                    className="bg-secondary/50 text-sm" disabled={isAddingLink} />
+                  <Button size="icon" variant="outline" onClick={handleAddLink} disabled={isAddingLink || !newLinkTitulo || !newLinkUrl}>
+                    {isAddingLink ? <span className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" /> : <LinkIcon className="w-4 h-4" />}
                   </Button>
                 </div>
               </div>
@@ -513,9 +640,10 @@ export function KanbanBoard({
         <SheetContent className="w-full sm:max-w-xl bg-card border-border overflow-y-auto p-0">
           {selectedSemana && (
             <WeekEditor
-              semana={selectedSemana}
+              semana={semanas.find(s => s.id === selectedSemana.id) || selectedSemana}
               onClose={() => setSelectedSemana(null)}
               onDelete={id => setSemanas(prev => prev.filter(s => s.id !== id))}
+              onUpdate={updatedSemana => setSemanas(prev => prev.map(s => s.id === updatedSemana.id ? updatedSemana : s))}
             />
           )}
         </SheetContent>

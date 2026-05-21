@@ -49,12 +49,12 @@ export default function LoginPage() {
       <Card className="w-full max-w-md relative z-10 bg-card/95 backdrop-blur border-border/50">
         <CardHeader className="text-center space-y-4">
           {/* Logo */}
-          <div className="mx-auto w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center">
-            <Dumbbell className="w-8 h-8 text-primary" />
+          <div className="mx-auto w-24 h-24 rounded-2xl overflow-hidden flex items-center justify-center bg-black">
+            <img src="/iconlogo.jpg" alt="Logo" className="w-full h-full object-cover" />
           </div>
           <div>
             <CardTitle className="text-2xl font-bold tracking-tight">
-              CrossFit SkillFitness
+              SkillFitness
             </CardTitle>
             <CardDescription className="text-muted-foreground mt-2">
               Ingresá con tus credenciales para acceder
