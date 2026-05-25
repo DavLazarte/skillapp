@@ -11,6 +11,7 @@ export default async function StudentPlanPage({ params }: { params: Promise<{ id
     where: { id, role: "alumno" },
     include: {
       asistencias: true,
+      rms: true,
       planes: {
         include: {
           tipoPlan: true
@@ -28,7 +29,7 @@ export default async function StudentPlanPage({ params }: { params: Promise<{ id
   const semanas = await prisma.semana.findMany({
     where: {
       tipoPlanId: { in: planIds },
-      estado: { in: ["en-curso", "finalizado"] } // Oculta 'planificacion'
+      estado: "en-curso" // Solo muestra la semana actual
     },
     include: {
       tipoPlan: true,

@@ -103,21 +103,6 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios }: 
             Tu programación semanal personalizada
           </p>
         </div>
-        
-        {planWeeks.length > 0 && (
-          <Select value={selectedSemanaId} onValueChange={(v) => { setSelectedSemanaId(v); setSelectedDayIdx(0) }}>
-            <SelectTrigger className="w-[200px] bg-card border-border/50">
-              <SelectValue placeholder="Seleccionar semana" />
-            </SelectTrigger>
-            <SelectContent>
-              {planWeeks.map((s: any) => (
-                <SelectItem key={s.id} value={s.id}>
-                  Semana {s.numero} {s.estado === "en-curso" ? "(actual)" : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
       </div>
 
       {/* Plan selection buttons (only if user has > 1 plan) */}
@@ -251,38 +236,127 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios }: 
               <div className="space-y-8">
                 {/* Workout Content */}
                 <div className="prose prose-invert prose-sm max-w-none">
-                  {selectedDayData.contenido.split("\n").map((line: string, idx: number) => {
-                    if (line.startsWith("**") && line.endsWith("**")) {
-                      return (
-                        <h4 key={idx} className="font-black italic uppercase text-lg text-primary mt-8 first:mt-0 flex items-center gap-3">
-                          <span className="w-1 h-6 bg-primary rounded-full" />
-                          {line.replace(/\*\*/g, "")}
-                        </h4>
-                      )
+                  {(() => {
+                    // Helper to get max RM
+                    const getRM = (exercise: string) => {
+                      const allForExercise = alumno.rms.filter((r: any) => r.ejercicio === exercise)
+                      if (allForExercise.length === 0) return null
+                      if (exercise === "5km" || exercise === "10k") {
+                        return Math.min(...allForExercise.map((r: any) => r.kg))
+                      }
+                      return Math.max(...allForExercise.map((r: any) => r.kg))
                     }
-                    if (line.startsWith("- ")) {
-                      return (
-                        <div key={idx} className="flex items-start gap-3 my-2 pl-4">
-                          <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary/60" />
-                          <p className="text-foreground/90 leading-snug m-0">{line.slice(2)}</p>
-                        </div>
-                      )
+
+                    const formatTime = (totalSeconds: number) => {
+                      const m = Math.floor(totalSeconds / 60)
+                      const s = Math.floor(totalSeconds % 60)
+                      return `${m}:${s.toString().padStart(2, "0")}`
                     }
-                    if (line.startsWith("*") && line.endsWith("*")) {
-                      return (
-                        <div key={idx} className="bg-primary/5 border-l-2 border-primary/30 p-4 rounded-r-lg my-6">
-                          <p className="text-muted-foreground italic m-0">
-                            {line.replace(/\*/g, "")}
-                          </p>
-                        </div>
-                      )
-                    }
-                    return line ? (
-                      <p key={idx} className="text-foreground/80 leading-relaxed mb-4">
-                        {line}
-                      </p>
-                    ) : null
-                  })}
+
+                    // Parser State
+                    let activeRMContext: string | null = null
+                    
+                    return selectedDayData.contenido.split("\n").map((line: string, idx: number) => {
+                      const lowerLine = line.toLowerCase()
+                      
+                      // 1. Detect Context Shift
+                      if (lowerLine.includes("clean") || lowerLine.includes("squat")) {
+                        // "clean and jerk" overrides clean
+                        if (lowerLine.includes("jerk")) activeRMContext = "Jerk"
+                        else activeRMContext = "Clean"
+                      } else if (lowerLine.includes("snatch")) {
+                        activeRMContext = "Snatch"
+                      } else if (lowerLine.includes("jerk")) {
+                        activeRMContext = "Jerk"
+                      }
+
+                      // 2. Process Line
+                      let processedLine: React.ReactNode = line
+
+                      // Check for running
+                      if (lowerLine.includes("5km")) {
+                        const pb = getRM("5km")
+                        processedLine = (
+                          <span>
+                            {line} <span className="text-primary font-bold ml-2 bg-primary/10 px-2 py-0.5 rounded text-xs">[ PB: {pb ? formatTime(pb) + " min" : "Sin RM"} ]</span>
+                          </span>
+                        )
+                      } else if (lowerLine.includes("10k")) {
+                        const pb = getRM("10k")
+                        processedLine = (
+                          <span>
+                            {line} <span className="text-primary font-bold ml-2 bg-primary/10 px-2 py-0.5 rounded text-xs">[ PB: {pb ? formatTime(pb) + " min" : "Sin RM"} ]</span>
+                          </span>
+                        )
+                      } 
+                      // Check for percentages
+                      else {
+                        const percentMatch = line.match(/(\d+)%/)
+                        if (percentMatch && activeRMContext) {
+                          const percent = parseInt(percentMatch[1])
+                          const maxRM = getRM(activeRMContext)
+                          if (maxRM) {
+                            const calculatedWeight = Math.round(((maxRM * percent) / 100) * 10) / 10
+                            // Split line to insert badge right after the percentage
+                            const parts = line.split(percentMatch[0])
+                            processedLine = (
+                              <span>
+                                {parts[0]}{percentMatch[0]}
+                                <span className="text-primary font-bold mx-2 bg-primary/10 px-2 py-0.5 rounded text-xs">
+                                  [ {calculatedWeight}kg ]
+                                </span>
+                                {parts[1]}
+                              </span>
+                            )
+                          } else {
+                            // Split line to insert "Sin RM" badge
+                            const parts = line.split(percentMatch[0])
+                            processedLine = (
+                              <span>
+                                {parts[0]}{percentMatch[0]}
+                                <span className="text-muted-foreground/60 italic mx-2 text-xs">
+                                  [ Sin RM de {activeRMContext} ]
+                                </span>
+                                {parts[1]}
+                              </span>
+                            )
+                          }
+                        }
+                      }
+
+                      // 3. Render Formatting
+                      if (line.startsWith("**") && line.endsWith("**")) {
+                        return (
+                          <h4 key={idx} className="font-black italic uppercase text-lg text-primary mt-8 first:mt-0 flex items-center gap-3">
+                            <span className="w-1 h-6 bg-primary rounded-full" />
+                            {processedLine}
+                          </h4>
+                        )
+                      }
+                      if (line.startsWith("- ")) {
+                        return (
+                          <div key={idx} className="flex items-start gap-3 my-2 pl-4">
+                            <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary/60" />
+                            <p className="text-foreground/90 leading-snug m-0">{processedLine}</p>
+                          </div>
+                        )
+                      }
+                      if (line.startsWith("*") && line.endsWith("*")) {
+                        return (
+                          <div key={idx} className="bg-primary/5 border-l-2 border-primary/30 p-4 rounded-r-lg my-6">
+                            <p className="text-muted-foreground italic m-0">
+                              {processedLine}
+                            </p>
+                          </div>
+                        )
+                      }
+                      return line ? (
+                        <p key={idx} className="text-foreground/80 leading-relaxed mb-4">
+                          {processedLine}
+                        </p>
+                      ) : null
+                    })
+                  })()}
                 </div>
 
                 {/* Exercise Links */}

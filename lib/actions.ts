@@ -310,6 +310,29 @@ export async function addRM(userId: string, ejercicio: string, kg: number) {
   }
 }
 
+export async function updateRM(id: string, userId: string, data: { ejercicio: string, kg: number }) {
+  try {
+    await prisma.rM.update({
+      where: { id },
+      data: { ejercicio: data.ejercicio, kg: data.kg }
+    })
+    revalidatePath(`/alumno/${userId}/rms`)
+    return { success: true }
+  } catch {
+    return { success: false, error: "No se pudo actualizar el RM" }
+  }
+}
+
+export async function deleteRM(id: string, userId: string) {
+  try {
+    await prisma.rM.delete({ where: { id } })
+    revalidatePath(`/alumno/${userId}/rms`)
+    return { success: true }
+  } catch {
+    return { success: false, error: "No se pudo eliminar el RM" }
+  }
+}
+
 export async function loginAction(email: string, password: string) {
   try {
     const user = await prisma.user.findUnique({ where: { email } })
@@ -317,5 +340,17 @@ export async function loginAction(email: string, password: string) {
     return { success: true, user: { id: user.id, email: user.email, role: user.role, nombre: user.nombre, avatar: user.avatar } }
   } catch {
     return { success: false, error: "Error al iniciar sesión" }
+  }
+}
+
+export async function changePassword(userId: string, newPassword: string) {
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: newPassword },
+    })
+    return { success: true }
+  } catch {
+    return { success: false, error: "No se pudo actualizar la contraseña" }
   }
 }

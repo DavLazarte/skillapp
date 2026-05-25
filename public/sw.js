@@ -1,5 +1,5 @@
 // Service worker for SkillFitness PWA
-const CACHE_VERSION = 'v1.2.0';
+const CACHE_VERSION = 'v1.3.0';
 const CACHE_NAME = `skillfitness-${CACHE_VERSION}`;
 
 const ASSETS_TO_CACHE = [

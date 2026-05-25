@@ -13,6 +13,8 @@ function formatCurrency(amount: number) {
   return `$${amount.toLocaleString("es-AR")}`
 }
 
+import { ChangePasswordForm } from "@/components/student/change-password-form"
+
 export default async function StudentProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   
@@ -92,6 +94,8 @@ export default async function StudentProfilePage({ params }: { params: Promise<{
             <p className="font-medium text-primary text-xl">{formatCurrency(alumno.cuota || 0)}<span className="text-muted-foreground text-sm"> / mes</span></p>
           </CardContent>
         </Card>
+
+        <ChangePasswordForm userId={alumno.id} />
       </div>
 
       {alumno.vencimiento && (
