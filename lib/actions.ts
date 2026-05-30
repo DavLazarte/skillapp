@@ -159,6 +159,59 @@ export async function createSemana(data: {
   }
 }
 
+export async function duplicateSemana(originalId: string) {
+  try {
+    const original = await prisma.semana.findUnique({
+      where: { id: originalId },
+      include: { dias: { include: { links: true } } }
+    })
+    if (!original) return { success: false, error: "Semana no encontrada" }
+
+    const maxSemana = await prisma.semana.findFirst({
+      where: { tipoPlanId: original.tipoPlanId },
+      orderBy: { numero: "desc" },
+    })
+    const nuevoNumero = (maxSemana?.numero || 0) + 1
+
+    const duplicada = await prisma.semana.create({
+      data: {
+        titulo: `${original.titulo} (Copia)`,
+        numero: nuevoNumero,
+        estado: "planificacion",
+        fechaInicio: new Date(),
+        tipoPlanId: original.tipoPlanId,
+      }
+    })
+
+    for (const dia of original.dias) {
+      const nuevoDia = await prisma.dia.create({
+        data: {
+          semanaId: duplicada.id,
+          nombre: dia.nombre,
+          descanso: dia.descanso,
+          contenido: dia.contenido,
+          orden: dia.orden,
+        }
+      })
+      if (dia.links && dia.links.length > 0) {
+        await prisma.link.createMany({
+          data: dia.links.map(l => ({
+            diaId: nuevoDia.id,
+            titulo: l.titulo,
+            url: l.url
+          }))
+        })
+      }
+    }
+
+    revalidatePath("/coach/planificacion")
+    return { success: true, id: duplicada.id }
+  } catch (error) {
+    console.error(error)
+    return { success: false, error: "Error al duplicar la semana" }
+  }
+}
+
 export async function updateSemanaEstado(id: string, estado: string) {
   try {
     await prisma.semana.update({ where: { id }, data: { estado } })
@@ -350,7 +403,35 @@ export async function changePassword(userId: string, newPassword: string) {
       data: { password: newPassword },
     })
     return { success: true }
+  } catch (error) {
+    console.error("Error changing password:", error)
+    return { success: false, error: "Error al cambiar contraseña" }
+  }
+}
+
+// ─── CONFIGURACIÓN (FS) ──────────────────────────────────────────────────────
+
+import fs from "fs/promises"
+import path from "path"
+
+const CONFIG_PATH = path.join(process.cwd(), "app-config.json")
+
+export async function getAppConfig() {
+  try {
+    const data = await fs.readFile(CONFIG_PATH, "utf-8")
+    return JSON.parse(data)
   } catch {
-    return { success: false, error: "No se pudo actualizar la contraseña" }
+    return { aliasPago: "" }
+  }
+}
+
+export async function saveAppConfig(config: any) {
+  try {
+    await fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 2))
+    revalidatePath("/coach/config")
+    revalidatePath("/alumno/[id]", "page")
+    return { success: true }
+  } catch {
+    return { success: false, error: "Error al guardar configuración" }
   }
 }

@@ -8,8 +8,25 @@ export default async function CoachDashboardPage() {
     where: { role: "alumno" },
   })
 
+  // Get coach data for the embedded WorkoutDashboard
+  const coach = await prisma.user.findFirst({
+    where: { role: "coach" },
+    include: {
+      asistencias: true,
+      rms: true,
+      planes: { include: { tipoPlan: true } }
+    }
+  })
+
   const semanas = await prisma.semana.findMany({
-    orderBy: { numero: "asc" }
+    orderBy: { numero: "asc" },
+    include: {
+      tipoPlan: true,
+      dias: {
+        include: { links: true },
+        orderBy: { orden: "asc" }
+      }
+    }
   })
 
   const comentarios = await prisma.comentario.findMany({
@@ -27,7 +44,8 @@ export default async function CoachDashboardPage() {
       alumnos={alumnos} 
       semanas={semanas} 
       comentarios={comentarios} 
-      pagos={pagos} 
+      pagos={pagos}
+      coach={coach}
     />
   )
 }

@@ -19,8 +19,9 @@ import {
 import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarCircle } from "@/components/shared/avatar-circle"
 import { Plus, Search, Phone, Mail, Pencil, Trash2, Dumbbell } from "lucide-react"
-import { format } from "date-fns"
+import { format, differenceInDays } from "date-fns"
 import { es } from "date-fns/locale"
+import { StudentRMsView } from "@/components/student/student-rms-view"
 import { createAlumno, updateAlumno, deleteAlumno } from "@/lib/actions"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -233,62 +234,87 @@ export function AlumnosView({
         </div>
       </div>
 
-      {/* Grid */}
+      {/* List */}
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           No hay alumnos que coincidan con la búsqueda
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="flex flex-col gap-3">
           {filtered.map(a => (
             <Card key={a.id} className="bg-card border-border hover:border-primary/30 transition-colors group">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <AvatarCircle initials={a.avatar ?? "?"} size="lg" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <h3 className="font-semibold truncate">{a.nombre}</h3>
-                        <StatusBadge status={(a.estado as any) ?? "inactivo"} />
-                      </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                        <Button size="icon" variant="ghost" className="h-7 w-7"
-                          onClick={() => setEditingAlumno(a)}>
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 hover:text-destructive"
-                          onClick={() => setDeletingId(a.id)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
+              <CardContent className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                
+                {/* User Info */}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <AvatarCircle initials={a.avatar ?? "?"} size="md" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-sm sm:text-base truncate">{a.nombre}</h3>
+                      <StatusBadge status={(a.estado as any) ?? "inactivo"} />
                     </div>
-                    <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1.5"><Mail className="w-3 h-3" /><span className="truncate">{a.email}</span></div>
-                      {a.telefono && <div className="flex items-center gap-1.5"><Phone className="w-3 h-3" /><span>{a.telefono}</span></div>}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1"><Mail className="w-3 h-3" /><span className="truncate">{a.email}</span></div>
+                      {a.telefono && <div className="flex items-center gap-1"><Phone className="w-3 h-3" /><span>{a.telefono}</span></div>}
                     </div>
-                    <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between">
-                      <span className="font-semibold text-primary text-sm">
-                        ${(a.cuota ?? 0).toLocaleString("es-AR")}/mes
-                      </span>
-                      {a.vencimiento && (
-                        <span className="text-xs text-muted-foreground">
-                          Vence: {format(new Date(a.vencimiento), "d MMM", { locale: es })}
-                        </span>
-                      )}
-                    </div>
-                    {a.planes.length > 0 && (
-                      <div className="mt-2 flex gap-1 flex-wrap">
-                        {a.planes.map(p => (
-                          <span key={p.tipoPlan.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
-                            style={{ backgroundColor: `${p.tipoPlan.color}20`, color: p.tipoPlan.color }}>
-                            <Dumbbell className="w-2.5 h-2.5" />
-                            {p.tipoPlan.nombre}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
+
+                {/* Plan & Actions */}
+                <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/50">
+                  <div className="flex flex-col sm:items-end min-w-0 shrink-0">
+                    <span className="font-semibold text-primary text-sm">
+                      ${(a.cuota ?? 0).toLocaleString("es-AR")}/mes
+                    </span>
+                    {a.vencimiento && (() => {
+                      const daysUntilExp = differenceInDays(new Date(a.vencimiento), new Date())
+                      const isExpired = daysUntilExp < 0
+                      const isExpiringSoon = daysUntilExp >= 0 && daysUntilExp <= 3
+                      
+                      let colorClass = "text-muted-foreground"
+                      let text = `Vence: ${format(new Date(a.vencimiento), "d MMM", { locale: es })}`
+                      
+                      if (isExpired) {
+                        colorClass = "text-destructive font-bold"
+                        text = `Vencido (${format(new Date(a.vencimiento), "d MMM", { locale: es })})`
+                      } else if (isExpiringSoon) {
+                        colorClass = "text-orange-500 font-bold"
+                        text = `Vence pronto (${format(new Date(a.vencimiento), "d MMM", { locale: es })})`
+                      }
+
+                      return (
+                        <span className={`text-xs ${colorClass}`}>
+                          {text}
+                        </span>
+                      )
+                    })()}
+                  </div>
+
+                  <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-primary bg-secondary/30 sm:bg-transparent" title="Ver RMs">
+                          <Dumbbell className="w-4 h-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-[95vw] sm:max-w-[95vw] lg:max-w-7xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-secondary/50 hover:[&::-webkit-scrollbar-thumb]:bg-secondary/80 [&::-webkit-scrollbar-thumb]:rounded-full">
+                        <DialogHeader className="sr-only">
+                          <DialogTitle>RMs de {a.nombre}</DialogTitle>
+                        </DialogHeader>
+                        <StudentRMsView alumno={a} rms={(a as any).rms || []} />
+                      </DialogContent>
+                    </Dialog>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 bg-secondary/30 sm:bg-transparent"
+                      onClick={() => setEditingAlumno(a)}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 hover:text-destructive bg-secondary/30 sm:bg-transparent"
+                      onClick={() => setDeletingId(a.id)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+
               </CardContent>
             </Card>
           ))}
@@ -298,10 +324,38 @@ export function AlumnosView({
       {/* Edit Dialog */}
       <Dialog open={!!editingAlumno} onOpenChange={open => !open && setEditingAlumno(null)}>
         <DialogContent className="bg-card border-border sm:max-w-lg">
-          <DialogHeader><DialogTitle>Editar alumno</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Editar alumno</DialogTitle>
+          </DialogHeader>
           {editingAlumno && (
-            <AlumnoForm initial={getEditForm(editingAlumno)} planesDisponibles={planesDisponibles}
-              onSubmit={handleUpdate} isLoading={isLoading} />
+            <>
+              <AlumnoForm initial={getEditForm(editingAlumno)} planesDisponibles={planesDisponibles}
+                onSubmit={handleUpdate} isLoading={isLoading} />
+              
+              <div className="pt-4 mt-4 border-t border-border/50 flex items-center justify-between">
+                <div className="text-sm">
+                  <p className="font-medium">¿Perdió su contraseña?</p>
+                  <p className="text-muted-foreground text-xs">Restablecer a la contraseña por defecto.</p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={async () => {
+                    if (confirm("¿Estás seguro de restablecer la contraseña a 'alumna123'?")) {
+                      setIsLoading(true)
+                      const { changePassword } = await import("@/lib/actions")
+                      const result = await changePassword(editingAlumno.id, "alumna123")
+                      setIsLoading(false)
+                      if (result.success) toast.success("Contraseña restablecida a 'alumna123'")
+                      else toast.error("Error al restablecer contraseña")
+                    }
+                  }}
+                  disabled={isLoading}
+                >
+                  Restablecer clave
+                </Button>
+              </div>
+            </>
           )}
         </DialogContent>
       </Dialog>

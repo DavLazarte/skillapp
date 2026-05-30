@@ -7,12 +7,23 @@ import { Users, DollarSign, Calendar, AlertCircle, MessageSquare } from "lucide-
 import { format, differenceInDays } from "date-fns"
 import { es } from "date-fns/locale"
 import Link from "next/link"
+import { WorkoutDashboard } from "@/components/student/workout-dashboard"
 
 function formatCurrency(amount: number) {
   return `$${amount.toLocaleString("es-AR")}`
 }
 
-export function CoachDashboardView({ alumnos, semanas, comentarios, pagos }: any) {
+export function CoachDashboardView({ alumnos, semanas, comentarios, pagos, coach }: any) {
+  // Give the coach access to all plans for the WorkoutDashboard preview
+  const allPlansMap = new Map()
+  semanas.forEach((s: any) => {
+    if (s.tipoPlan) allPlansMap.set(s.tipoPlanId, s.tipoPlan)
+  })
+  const coachWithAllPlans = coach ? {
+    ...coach,
+    planes: Array.from(allPlansMap.values()).map(p => ({ tipoPlan: p }))
+  } : null
+
   const activeStudents = alumnos.filter((a: any) => a.estado === "activo").length
   const currentWeek = semanas.find((s: any) => s.estado === "en-curso")
   
@@ -25,7 +36,7 @@ export function CoachDashboardView({ alumnos, semanas, comentarios, pagos }: any
     if (!a.vencimiento || a.estado !== "activo") return false
     const expDate = new Date(a.vencimiento)
     const daysLeft = differenceInDays(expDate, today)
-    return daysLeft >= 0 && daysLeft <= 7
+    return daysLeft <= 7 // Includes expired (negative days) and expiring soon
   })
 
   const recentStudentComments = comentarios
@@ -91,6 +102,24 @@ export function CoachDashboardView({ alumnos, semanas, comentarios, pagos }: any
           </CardContent>
         </Card>
       </div>
+
+      {/* Embedded Student View for Coach */}
+      {coachWithAllPlans && semanas.length > 0 && (
+        <div className="pt-4 pb-8 border-b border-border/50">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">Tu Entrenamiento</h2>
+              <p className="text-sm text-muted-foreground">Completá tu plan y registrá tus marcas desde acá</p>
+            </div>
+          </div>
+          <WorkoutDashboard 
+            alumno={coachWithAllPlans} 
+            semanas={semanas} 
+            asistencias={coachWithAllPlans.asistencias || []}
+            comentarios={comentarios}
+          />
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

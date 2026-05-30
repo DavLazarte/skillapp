@@ -57,12 +57,16 @@ export default async function StudentPlanPage({ params }: { params: Promise<{ id
     orderBy: { fecha: "desc" }
   })
 
+  const { getAppConfig } = await import("@/lib/actions")
+  const config = await getAppConfig()
+
   return (
     <WorkoutDashboard 
       alumno={alumno} 
       semanas={semanas} 
       asistencias={alumno.asistencias}
       comentarios={comentarios}
+      config={config}
     />
   )
 }

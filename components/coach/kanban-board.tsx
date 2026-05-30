@@ -13,6 +13,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -25,14 +26,14 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities"
 import {
   Plus, GripVertical, Pencil, Trash2, X, ExternalLink,
-  Link as LinkIcon, Eye, EyeOff, ChevronRight, Bold, Italic, List
+  Link as LinkIcon, Eye, EyeOff, ChevronRight, Bold, Italic, List, Copy
 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import {
   createSemana, updateSemanaEstado, updateSemana,
-  deleteSemana, updateDia, addLinkToDia, deleteLinkFromDia,
+  deleteSemana, updateDia, addLinkToDia, deleteLinkFromDia, duplicateSemana
 } from "@/lib/actions"
 import { toast } from "sonner"
 import React from "react"
@@ -179,9 +180,9 @@ function WeekCard({
 
 // ─── Week Editor Sheet ───────────────────────────────────────────────────────
 function WeekEditor({
-  semana, onClose, onDelete, onUpdate
+  semana, onClose, onDelete, onUpdate, onDuplicate
 }: {
-  semana: Semana; onClose: () => void; onDelete: (id: string) => void; onUpdate: (s: Semana) => void
+  semana: Semana; onClose: () => void; onDelete: (id: string) => void; onUpdate: (s: Semana) => void; onDuplicate: () => void
 }) {
   const [titulo, setTitulo] = useState(semana.titulo)
   const [selectedDay, setSelectedDay] = useState(0)
@@ -266,6 +267,17 @@ function WeekEditor({
     if (r.success) { onDelete(semana.id); onClose() }
     else toast.error(r.error)
   }
+
+  const handleDuplicate = async () => {
+    const r = await duplicateSemana(semana.id)
+    if (r.success) {
+      toast.success("Semana duplicada correctamente")
+      onDuplicate() // To refresh the board
+      onClose()
+    } else {
+      toast.error(r.error)
+    }
+  }
   
   const insertFormatting = (prefix: string, suffix: string = "") => {
     const el = textareaRef.current
@@ -292,168 +304,212 @@ function WeekEditor({
   }
 
   return (
-    <div className="p-6 flex flex-col gap-4">
-      <SheetHeader className="mb-2">
-        <SheetTitle asChild>
-          <div className="flex flex-col gap-2 relative">
-            {isUpdatingHeader && (
-              <span className="absolute -top-5 right-0 text-xs font-medium text-primary flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                Guardando...
-              </span>
-            )}
-            <Input
-              value={titulo}
-              onChange={e => setTitulo(e.target.value)}
-              onBlur={saveTitulo}
-              className="text-lg font-bold bg-secondary/50 border-0 focus-visible:ring-1"
-            />
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Inicia el:</span>
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Sticky Header */}
+      <div className="p-6 pb-4 shrink-0 border-b border-border/50">
+        <SheetHeader className="mb-0">
+          <SheetTitle asChild>
+            <div className="flex flex-col gap-2 relative">
+              {isUpdatingHeader && (
+                <span className="absolute -top-5 right-0 text-xs font-medium text-primary flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  Guardando...
+                </span>
+              )}
               <Input
-                type="date"
-                defaultValue={format(new Date(semana.fechaInicio), "yyyy-MM-dd")}
-                onBlur={e => {
-                  if (e.target.value !== format(new Date(semana.fechaInicio), "yyyy-MM-dd")) {
-                    saveFechaInicio(e.target.value)
-                  }
-                }}
-                className="h-7 w-36 text-xs bg-secondary/50 border-0"
+                value={titulo}
+                onChange={e => setTitulo(e.target.value)}
+                onBlur={saveTitulo}
+                className="text-lg font-bold bg-secondary/50 border-0 focus-visible:ring-1"
               />
-              <span className="text-xs text-muted-foreground ml-auto">
-                Plan: <span style={{ color: semana.tipoPlan.color }}>{semana.tipoPlan.nombre}</span>
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Inicia el:</span>
+                <Input
+                  type="date"
+                  defaultValue={format(new Date(semana.fechaInicio), "yyyy-MM-dd")}
+                  onBlur={e => {
+                    if (e.target.value !== format(new Date(semana.fechaInicio), "yyyy-MM-dd")) {
+                      saveFechaInicio(e.target.value)
+                    }
+                  }}
+                  className="h-7 w-36 text-xs bg-secondary/50 border-0"
+                />
+                <span className="text-xs text-muted-foreground ml-auto">
+                  Plan: <span style={{ color: semana.tipoPlan.color }}>{semana.tipoPlan.nombre}</span>
+                </span>
+              </div>
             </div>
-          </div>
-        </SheetTitle>
-      </SheetHeader>
-
-      {/* Day Tabs */}
-      <div className="flex gap-1.5 mb-4 flex-wrap">
-        {semana.dias.map((d, i) => (
-          <Button
-            key={d.id}
-            size="sm"
-            variant={selectedDay === i ? "default" : "outline"}
-            onClick={() => setSelectedDay(i)}
-            className={cn(
-              selectedDay === i && "bg-primary text-primary-foreground",
-              d.descanso && selectedDay !== i && "opacity-50"
-            )}
-          >
-            {d.nombre.slice(0, 3)}
-            {d.descanso && <span className="ml-1 text-[10px]">(D)</span>}
-          </Button>
-        ))}
+          </SheetTitle>
+        </SheetHeader>
       </div>
 
-      {/* Day Editor */}
-      {dia && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold">{dia.nombre}</h3>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="descanso" className="text-sm text-muted-foreground">Descanso</Label>
-              <Switch
-                id="descanso"
-                checked={dia.descanso}
-                onCheckedChange={v => saveDia("descanso", v)}
-              />
-            </div>
-          </div>
-
-          {!dia.descanso ? (
-            <>
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label>Contenido del día</Label>
-                  <div className="flex items-center gap-1 bg-secondary/50 rounded-md p-1">
-                    <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={() => insertFormatting("**", "**")} title="Negrita">
-                      <Bold className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={() => insertFormatting("*", "*")} title="Cursiva">
-                      <Italic className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={() => insertFormatting("- ")} title="Lista">
-                      <List className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Textarea con overlay de guardado */}
-                <div className="relative">
-                  <Textarea
-                    key={dia.id}
-                    ref={textareaRef}
-                    defaultValue={dia.contenido}
-                    onBlur={e => {
-                      if (e.target.value !== dia.contenido) {
-                        saveDia("contenido", e.target.value)
-                      }
-                    }}
-                    placeholder={"**Fuerza principal**\n5x5 Back Squat @ 75%\n\n**WOD**\n21-15-9 Thrusters / Pull-ups"}
-                    className="min-h-[180px] bg-secondary/30 font-mono text-sm shadow-inner"
-                    disabled={isSaving}
-                  />
-                  {isSaving && (
-                    <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] rounded-md flex items-center justify-center pointer-events-none">
-                      <div className="flex items-center gap-2 bg-card border border-border px-4 py-2 rounded-full shadow-lg">
-                        <span className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                        <span className="text-sm font-semibold">Guardando planificación...</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <p className="text-xs text-muted-foreground">
-                  Se guarda automáticamente al salir del campo · Usá los botones para dar formato
-                </p>
-              </div>
-
-              {/* Links */}
-              <div className="space-y-2">
-                <Label>Videos de referencia</Label>
-                {dia.links.map(l => (
-                  <div key={l.id} className="flex items-center gap-2 group">
-                    <div className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-secondary/30 rounded-lg text-sm">
-                      <ExternalLink className="w-3.5 h-3.5 text-primary shrink-0" />
-                      <a href={l.url} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate">
-                        {l.titulo}
-                      </a>
-                    </div>
-                    {deletingLinkId === l.id ? (
-                      <div className="h-7 w-7 flex items-center justify-center">
-                        <span className="w-3 h-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                      </div>
-                    ) : (
-                      <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 hover:text-destructive"
-                        onClick={() => handleDeleteLink(l.id)}>
-                        <X className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                <div className="flex gap-2">
-                  <Input placeholder="Título" value={newLinkTitulo} onChange={e => setNewLinkTitulo(e.target.value)}
-                    className="bg-secondary/50 text-sm" disabled={isAddingLink} />
-                  <Input placeholder="URL" value={newLinkUrl} onChange={e => setNewLinkUrl(e.target.value)}
-                    className="bg-secondary/50 text-sm" disabled={isAddingLink} />
-                  <Button size="icon" variant="outline" onClick={handleAddLink} disabled={isAddingLink || !newLinkTitulo || !newLinkUrl}>
-                    {isAddingLink ? <span className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" /> : <LinkIcon className="w-4 h-4" />}
-                  </Button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="py-8 text-center text-muted-foreground bg-secondary/20 rounded-lg">
-              🏖️ Día de descanso
-            </div>
-          )}
+      {/* Scrollable Body */}
+      <div className="p-6 py-4 flex-1 overflow-y-auto">
+        {/* Day Tabs */}
+        <div className="flex gap-1.5 mb-6 flex-wrap">
+          {semana.dias.map((d, i) => (
+            <Button
+              key={d.id}
+              size="sm"
+              variant={selectedDay === i ? "default" : "outline"}
+              onClick={() => setSelectedDay(i)}
+              className={cn(
+                selectedDay === i && "bg-primary text-primary-foreground",
+                d.descanso && selectedDay !== i && "opacity-50"
+              )}
+            >
+              {d.nombre.slice(0, 3)}
+              {d.descanso && <span className="ml-1 text-[10px]">(D)</span>}
+            </Button>
+          ))}
         </div>
-      )}
 
-      <div className="mt-8 pt-6 border-t border-border">
-        <Button variant="destructive" size="sm" onClick={() => setConfirmDelete(true)} className="w-full">
+        {/* Day Editor */}
+        {dia && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">{dia.nombre}</h3>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="descanso" className="text-sm text-muted-foreground">Descanso</Label>
+                <Switch
+                  id="descanso"
+                  checked={dia.descanso}
+                  onCheckedChange={v => saveDia("descanso", v)}
+                />
+              </div>
+            </div>
+
+            {!dia.descanso ? (
+              <>
+                <div className="space-y-1.5">
+                  <Tabs defaultValue="edit" className="w-full">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label>Contenido del día</Label>
+                      <TabsList className="h-8">
+                        <TabsTrigger value="edit" className="text-xs">Editar</TabsTrigger>
+                        <TabsTrigger value="preview" className="text-xs">Vista Previa</TabsTrigger>
+                      </TabsList>
+                    </div>
+
+                    <TabsContent value="edit" className="mt-0 space-y-2">
+                      <div className="flex items-center gap-1 bg-secondary/50 rounded-md p-1 w-fit">
+                        <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={() => insertFormatting("**", "**")} title="Título (Rojo)">
+                          <Bold className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={() => insertFormatting("*", "*")} title="Cursiva">
+                          <Italic className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={() => insertFormatting("- ")} title="Lista">
+                          <List className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+
+                      <div className="relative">
+                        <Textarea
+                          key={dia.id}
+                          ref={textareaRef}
+                          defaultValue={dia.contenido}
+                          onBlur={e => {
+                            if (e.target.value !== dia.contenido) {
+                              saveDia("contenido", e.target.value)
+                            }
+                          }}
+                          placeholder={"**Fuerza principal**\n5x5 Back Squat @ 75%\n\n**WOD**\n21-15-9 Thrusters / Pull-ups"}
+                          className="min-h-[220px] bg-secondary/10 font-sans text-base shadow-inner leading-relaxed resize-y"
+                          disabled={isSaving}
+                        />
+                        {isSaving && (
+                          <div className="absolute inset-0 bg-background/60 backdrop-blur-[1px] rounded-md flex items-center justify-center pointer-events-none">
+                            <div className="flex items-center gap-2 bg-card border border-border px-4 py-2 rounded-full shadow-lg">
+                              <span className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                              <span className="text-sm font-semibold">Guardando planificación...</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Se guarda automáticamente al salir del campo. Usá "Vista Previa" para ver el resultado.
+                      </p>
+                    </TabsContent>
+
+                    <TabsContent value="preview" className="mt-0">
+                      <div className="min-h-[220px] bg-card p-4 sm:p-6 rounded-md border border-border/50 text-base shadow-sm">
+                        {dia.contenido ? dia.contenido.split("\n").map((line, idx) => {
+                          const trimmedLine = line.trim()
+                          if (trimmedLine.startsWith("**") && trimmedLine.endsWith("**")) {
+                            return (
+                              <h4 key={idx} className="font-black italic uppercase text-lg text-primary mt-6 mb-2 first:mt-0 flex items-center gap-3">
+                                <span className="w-1 h-6 bg-primary rounded-full" />
+                                {trimmedLine.replace(/\*\*/g, "")}
+                              </h4>
+                            )
+                          }
+                          if (trimmedLine.startsWith("- ")) {
+                            return (
+                              <div key={idx} className="flex items-start gap-3 my-2 pl-4">
+                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary/60 shrink-0" />
+                                <p className="text-foreground/90 leading-snug m-0">{line.substring(2)}</p>
+                              </div>
+                            )
+                          }
+                          return <p key={idx} className="min-h-[1.5rem] my-1 text-foreground/90">{line}</p>
+                        }) : (
+                          <p className="text-muted-foreground italic text-sm text-center py-10">El día está vacío.</p>
+                        )}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </div>
+
+                {/* Links */}
+                <div className="space-y-2">
+                  <Label>Videos de referencia</Label>
+                  {dia.links.map(l => (
+                    <div key={l.id} className="flex items-center gap-2 group">
+                      <div className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-secondary/30 rounded-lg text-sm">
+                        <ExternalLink className="w-3.5 h-3.5 text-primary shrink-0" />
+                        <a href={l.url} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate">
+                          {l.titulo}
+                        </a>
+                      </div>
+                      {deletingLinkId === l.id ? (
+                        <div className="h-7 w-7 flex items-center justify-center">
+                          <span className="w-3 h-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                        </div>
+                      ) : (
+                        <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 hover:text-destructive"
+                          onClick={() => handleDeleteLink(l.id)}>
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <div className="flex gap-2">
+                    <Input placeholder="Título" value={newLinkTitulo} onChange={e => setNewLinkTitulo(e.target.value)}
+                      className="bg-secondary/50 text-sm" disabled={isAddingLink} />
+                    <Input placeholder="URL" value={newLinkUrl} onChange={e => setNewLinkUrl(e.target.value)}
+                      className="bg-secondary/50 text-sm" disabled={isAddingLink} />
+                    <Button size="icon" variant="outline" onClick={handleAddLink} disabled={isAddingLink || !newLinkTitulo || !newLinkUrl}>
+                      {isAddingLink ? <span className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" /> : <LinkIcon className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="py-8 text-center text-muted-foreground bg-secondary/20 rounded-lg">
+                🏖️ Día de descanso
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Sticky Footer */}
+      <div className="p-6 pt-4 shrink-0 border-t border-border bg-card flex gap-2">
+        <Button variant="outline" size="sm" onClick={handleDuplicate} className="flex-1 bg-secondary/30 hover:bg-secondary/50">
+          <Copy className="w-4 h-4 mr-2" /> Duplicar semana
+        </Button>
+        <Button variant="destructive" size="sm" onClick={() => setConfirmDelete(true)} className="flex-1">
           <Trash2 className="w-4 h-4 mr-2" /> Eliminar semana
         </Button>
       </div>
@@ -637,13 +693,14 @@ export function KanbanBoard({
 
       {/* Week Editor Sheet */}
       <Sheet open={!!selectedSemana} onOpenChange={open => !open && setSelectedSemana(null)}>
-        <SheetContent className="w-full sm:max-w-xl bg-card border-border overflow-y-auto p-0">
+        <SheetContent className="w-full sm:max-w-xl bg-card border-border flex flex-col gap-0 p-0">
           {selectedSemana && (
             <WeekEditor
               semana={semanas.find(s => s.id === selectedSemana.id) || selectedSemana}
               onClose={() => setSelectedSemana(null)}
               onDelete={id => setSemanas(prev => prev.filter(s => s.id !== id))}
               onUpdate={updatedSemana => setSemanas(prev => prev.map(s => s.id === updatedSemana.id ? updatedSemana : s))}
+              onDuplicate={() => window.location.reload()}
             />
           )}
         </SheetContent>

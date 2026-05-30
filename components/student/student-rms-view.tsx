@@ -119,7 +119,7 @@ export function StudentRMsView({ alumno, rms }: any) {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-7xl w-full mx-auto">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -277,7 +277,7 @@ export function StudentRMsView({ alumno, rms }: any) {
                 <div className="h-1 bg-gradient-to-r from-primary to-primary/20 w-full opacity-50 group-hover:opacity-100 transition-opacity" />
                 
                 {/* Actions overlay */}
-                <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute top-4 right-4 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <button onClick={() => handleOpenEdit(rm)} className="p-1.5 bg-secondary/80 hover:bg-primary text-foreground hover:text-primary-foreground rounded-md transition-colors backdrop-blur-sm">
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>

@@ -11,15 +11,24 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { Calendar, ExternalLink, CheckCircle2, MessageSquare, Send, Loader2 } from "lucide-react"
-import { format, parseISO, addDays } from "date-fns"
+import { Calendar, ExternalLink, CheckCircle2, MessageSquare, Send, Loader2, AlertCircle, Copy } from "lucide-react"
+import { format, parseISO, addDays, differenceInDays } from "date-fns"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { toggleWorkoutCompletion, postComment } from "@/lib/actions"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 
-export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios }: any) {
+export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, config }: any) {
+  // Check for expiration
+  const today = new Date()
+  let isExpiringSoon = false
+  let daysLeft = 0
+  if (alumno?.vencimiento && alumno.estado === "activo") {
+    daysLeft = differenceInDays(new Date(alumno.vencimiento), today)
+    isExpiringSoon = daysLeft <= 3
+  }
+
   // Get all unique plans that have weeks
   const plans = alumno.planes.map((p: any) => p.tipoPlan)
   
@@ -34,7 +43,14 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios }: 
   
   // State for selected week ID
   const [selectedSemanaId, setSelectedSemanaId] = useState(currentWeek?.id || "")
-  const [selectedDayIdx, setSelectedDayIdx] = useState(0)
+  
+  // Calculate today's index (0: Lunes, 1: Martes ... 5: Sábado)
+  const todayDate = new Date()
+  const dayOfWeek = todayDate.getDay() // 0 is Sunday, 1 is Monday...
+  let defaultDayIdx = dayOfWeek === 0 ? 0 : dayOfWeek - 1 // If Sunday, default to Monday
+  if (defaultDayIdx > 5) defaultDayIdx = 5 // Cap at Saturday (index 5)
+  
+  const [selectedDayIdx, setSelectedDayIdx] = useState(defaultDayIdx)
   const [commentText, setCommentText] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isToggling, setIsToggling] = useState(false)
@@ -45,7 +61,7 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios }: 
     const newPlanWeeks = semanas.filter((s: any) => s.tipoPlanId === planId)
     const newCurrent = newPlanWeeks.find((s: any) => s.estado === "en-curso") || newPlanWeeks[0]
     setSelectedSemanaId(newCurrent?.id || "")
-    setSelectedDayIdx(0)
+    setSelectedDayIdx(defaultDayIdx)
   }
 
   const selectedSemana = planWeeks.find((s: any) => s.id === selectedSemanaId) || currentWeek
@@ -95,6 +111,37 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios }: 
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
+      {isExpiringSoon && (
+        <div className="bg-destructive/15 border border-destructive/30 text-destructive-foreground p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in slide-in-from-top-2">
+          <div>
+            <h3 className="font-bold flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-destructive" />
+              ¡Tu cuota {daysLeft < 0 ? "está vencida" : "está por vencer"}!
+            </h3>
+            <p className="text-sm opacity-90 mt-1">
+              {daysLeft < 0 
+                ? `Se venció hace ${Math.abs(daysLeft)} días.` 
+                : daysLeft === 0 ? "Vence hoy mismo." : `Se vence en ${daysLeft} días.`}
+            </p>
+          </div>
+          {config?.aliasPago && (
+            <button 
+              onClick={() => {
+                navigator.clipboard.writeText(config.aliasPago)
+                toast.success("¡Alias copiado al portapapeles!")
+              }}
+              className="bg-background/20 hover:bg-background/40 transition-colors px-4 py-2 rounded-lg backdrop-blur-sm shrink-0 text-left group cursor-pointer border border-transparent hover:border-destructive/30"
+            >
+              <p className="text-xs uppercase tracking-wider font-bold opacity-70 mb-1 group-hover:opacity-100 transition-opacity">Alias para renovar:</p>
+              <p className="font-mono font-bold flex items-center gap-2">
+                {config.aliasPago}
+                <Copy className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" />
+              </p>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -105,9 +152,21 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios }: 
         </div>
       </div>
 
-      {/* Plan selection buttons (only if user has > 1 plan) */}
-      {plans.length > 1 && (
-        <div className="flex gap-2 flex-wrap bg-secondary/10 p-1 rounded-xl w-fit">
+      {daysLeft < 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 bg-secondary/10 rounded-2xl border border-border/50">
+          <div className="w-16 h-16 bg-destructive/10 text-destructive rounded-full flex items-center justify-center mb-2">
+            <AlertCircle className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl font-bold text-foreground">Plan Bloqueado</h2>
+          <p className="text-muted-foreground max-w-md">
+            Tu cuota mensual se encuentra vencida. Por favor, regularizá tu situación para volver a ver tus entrenamientos de la semana.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Plan selection buttons (only if user has > 1 plan) */}
+          {plans.length > 1 && (
+            <div className="flex gap-2 flex-wrap bg-secondary/10 p-1 rounded-xl w-fit">
           {plans.map((p: any) => (
             <button
               key={p.id}
@@ -434,6 +493,8 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios }: 
           </Card>
         </div>
       </div>
+      </>
+      )}
     </div>
   )
 }

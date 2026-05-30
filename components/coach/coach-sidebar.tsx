@@ -25,6 +25,7 @@ const navItems = [
   { href: "/coach/alumnos", label: "Alumnos", icon: Users },
   { href: "/coach/planes", label: "Planes", icon: Layers },
   { href: "/coach/planificacion", label: "Planificación", icon: Calendar },
+  { href: "/coach/rms", label: "Mis RMs", icon: Dumbbell },
   { href: "/coach/pagos", label: "Pagos", icon: CreditCard },
   { href: "/coach/config", label: "Configuración", icon: Settings },
 ];

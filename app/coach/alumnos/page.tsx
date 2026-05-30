@@ -10,6 +10,7 @@ export default async function AlumnosPage() {
       include: {
         planes: { include: { tipoPlan: true } },
         _count: { select: { pagos: true } },
+        rms: true,
       },
       orderBy: { nombre: "asc" },
     }),
