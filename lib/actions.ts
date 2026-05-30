@@ -409,17 +409,21 @@ export async function changePassword(userId: string, newPassword: string) {
   }
 }
 
-// ─── CONFIGURACIÓN (FS) ──────────────────────────────────────────────────────
-
-import fs from "fs/promises"
-import path from "path"
-
-const CONFIG_PATH = path.join(process.cwd(), "app-config.json")
+// ─── CONFIGURACIÓN (DB) ────────────────────────────────────────────────────────
 
 export async function getAppConfig() {
   try {
-    const data = await fs.readFile(CONFIG_PATH, "utf-8")
-    return JSON.parse(data)
+    const coach = await prisma.user.findFirst({ where: { role: "coach" } })
+    if (coach && coach.gimnasio) {
+      try {
+        const parsed = JSON.parse(coach.gimnasio)
+        if (typeof parsed === 'object') return parsed
+      } catch (e) {
+        // Fallback en caso de que fuera solo un string
+        return { aliasPago: coach.gimnasio }
+      }
+    }
+    return { aliasPago: "" }
   } catch {
     return { aliasPago: "" }
   }
@@ -427,11 +431,17 @@ export async function getAppConfig() {
 
 export async function saveAppConfig(config: any) {
   try {
-    await fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 2))
+    const coach = await prisma.user.findFirst({ where: { role: "coach" } })
+    if (coach) {
+      await prisma.user.update({
+        where: { id: coach.id },
+        data: { gimnasio: JSON.stringify(config) }
+      })
+    }
     revalidatePath("/coach/config")
     revalidatePath("/alumno/[id]", "page")
     return { success: true }
-  } catch {
+  } catch (err: any) {
     return { success: false, error: "Error al guardar configuración" }
   }
 }
