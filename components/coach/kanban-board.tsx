@@ -303,6 +303,33 @@ function WeekEditor({
     }, 0)
   }
 
+  const insertLink = () => {
+    const el = textareaRef.current
+    if (!el) return
+    const start = el.selectionStart
+    const end = el.selectionEnd
+    const currentVal = el.value
+    const textSelected = currentVal.substring(start, end) || "enlace"
+    
+    const url = window.prompt("Ingresá la URL del video o página:")
+    if (!url) return
+
+    const prefix = "["
+    const suffix = `](${url})`
+    
+    const textBefore = currentVal.substring(0, start)
+    const textAfter = currentVal.substring(end)
+    const newVal = textBefore + prefix + textSelected + suffix + textAfter
+
+    el.value = newVal
+    saveDia("contenido", newVal)
+    
+    setTimeout(() => {
+      el.focus()
+      el.setSelectionRange(start + prefix.length, start + prefix.length + textSelected.length)
+    }, 0)
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Sticky Header */}
@@ -392,15 +419,26 @@ function WeekEditor({
                     </div>
 
                     <TabsContent value="edit" className="mt-0 space-y-2">
-                      <div className="flex items-center gap-1 bg-secondary/50 rounded-md p-1 w-fit">
-                        <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={() => insertFormatting("**", "**")} title="Título (Rojo)">
+                      <div className="flex items-center gap-1 bg-secondary/50 rounded-md p-1 w-fit flex-wrap">
+                        <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={() => insertFormatting("# ", "")} title="Título Principal (Rojo)">
+                          <span className="font-bold text-xs tracking-tighter">H1</span>
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={() => insertFormatting("## ", "")} title="Subtítulo">
+                          <span className="font-bold text-xs tracking-tighter">H2</span>
+                        </Button>
+                        <div className="w-px h-4 bg-border mx-1" />
+                        <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={() => insertFormatting("**", "**")} title="Negrita">
                           <Bold className="w-3.5 h-3.5" />
                         </Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={() => insertFormatting("*", "*")} title="Cursiva">
                           <Italic className="w-3.5 h-3.5" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={() => insertFormatting("- ")} title="Lista">
+                        <div className="w-px h-4 bg-border mx-1" />
+                        <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={() => insertFormatting("- ", "")} title="Lista">
                           <List className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 rounded-sm" onClick={insertLink} title="Enlace (Link)">
+                          <LinkIcon className="w-3.5 h-3.5" />
                         </Button>
                       </div>
 
@@ -434,66 +472,187 @@ function WeekEditor({
 
                     <TabsContent value="preview" className="mt-0">
                       <div className="min-h-[220px] bg-card p-4 sm:p-6 rounded-md border border-border/50 text-base shadow-sm">
-                        {dia.contenido ? dia.contenido.split("\n").map((line, idx) => {
-                          const trimmedLine = line.trim()
-                          if (trimmedLine.startsWith("**") && trimmedLine.endsWith("**")) {
-                            return (
-                              <h4 key={idx} className="font-black italic uppercase text-lg text-primary mt-6 mb-2 first:mt-0 flex items-center gap-3">
-                                <span className="w-1 h-6 bg-primary rounded-full" />
-                                {trimmedLine.replace(/\*\*/g, "")}
-                              </h4>
-                            )
+                        {(() => {
+                          const renderBoldItalic = (text: string) => {
+                            const parts = text.split(/(\*\*.*?\*\*)/g)
+                            return parts.map((part, i) => {
+                              if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+                                return <strong key={i} className="font-bold text-foreground">{part.slice(2, -2)}</strong>
+                              }
+                              const italicParts = part.split(/(\*.*?\*)/g)
+                              return italicParts.map((ip, j) => {
+                                if (ip.startsWith("*") && ip.endsWith("*") && ip.length > 2) {
+                                  return <em key={j} className="italic text-foreground/90">{ip.slice(1, -1)}</em>
+                                }
+                                return ip
+                              })
+                            })
                           }
-                          if (trimmedLine.startsWith("- ")) {
-                            return (
-                              <div key={idx} className="flex items-start gap-3 my-2 pl-4">
-                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary/60 shrink-0" />
-                                <p className="text-foreground/90 leading-snug m-0">{line.substring(2)}</p>
-                              </div>
-                            )
+
+                          const renderInlineMarkdown = (text: string) => {
+                            const parts = text.split(/(\[.*?\]\(.*?\))/g)
+                            return parts.map((part, i) => {
+                              const linkMatch = part.match(/\[(.*?)\]\((.*?)\)/)
+                              if (linkMatch) {
+                                return (
+                                  <a key={i} href={linkMatch[2]} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium inline-flex items-center gap-1 bg-primary/10 px-1.5 py-0.5 rounded-md transition-colors hover:bg-primary/20">
+                                    {renderBoldItalic(linkMatch[1])}
+                                  </a>
+                                )
+                              }
+                              return <span key={i}>{renderBoldItalic(part)}</span>
+                            })
                           }
-                          return <p key={idx} className="min-h-[1.5rem] my-1 text-foreground/90">{line}</p>
-                        }) : (
-                          <p className="text-muted-foreground italic text-sm text-center py-10">El día está vacío.</p>
-                        )}
+
+                          if (!dia.contenido) return <p className="text-muted-foreground italic text-sm text-center py-10">El día está vacío.</p>
+
+                          return dia.contenido.split("\n").map((line, idx) => {
+                            if (!line.trim()) {
+                              return <div key={idx} className="h-4" />
+                            }
+
+                            // Extract Block Formatting
+                            let lineContent = line
+                            let isH1 = false
+                            let isH2 = false
+                            let isList = false
+                            let isOldTitle = false
+
+                            if (line.startsWith("# ")) {
+                              isH1 = true
+                              lineContent = line.substring(2)
+                            } else if (line.startsWith("## ")) {
+                              isH2 = true
+                              lineContent = line.substring(3)
+                            } else if (line.startsWith("- ")) {
+                              isList = true
+                              lineContent = line.substring(2)
+                            } else if (line.startsWith("**") && line.endsWith("**") && line.length > 4 && !line.includes(" ")) {
+                              isOldTitle = true
+                              lineContent = line.substring(2, line.length - 2)
+                            }
+
+                            let processedLine: React.ReactNode = renderInlineMarkdown(lineContent)
+                            const lowerLineContent = lineContent.toLowerCase()
+
+                            if (lowerLineContent.includes("5km")) {
+                              processedLine = (
+                                <span>
+                                  {renderInlineMarkdown(lineContent)} <span className="text-primary font-bold ml-2 bg-primary/10 px-2 py-0.5 rounded text-xs">[ PB de Alumno ]</span>
+                                </span>
+                              )
+                            } else if (lowerLineContent.includes("10k")) {
+                              processedLine = (
+                                <span>
+                                  {renderInlineMarkdown(lineContent)} <span className="text-primary font-bold ml-2 bg-primary/10 px-2 py-0.5 rounded text-xs">[ PB de Alumno ]</span>
+                                </span>
+                              )
+                            } else if (lowerLineContent.match(/(\d+)\s*m\s*(?:rpe|rp)\s*(\d+)/i)) {
+                              const rpMatch = lineContent.match(/(\d+)\s*m\s*(?:rpe|rp)\s*(\d+)/i)
+                              if (rpMatch) {
+                                const parts = lineContent.split(rpMatch[0])
+                                processedLine = (
+                                  <span>
+                                    {renderInlineMarkdown(parts[0])}
+                                    {rpMatch[0]}
+                                    <span className="text-primary font-bold mx-2 bg-primary/10 px-2 py-0.5 rounded text-xs shadow-sm">
+                                      [ Predictor Activo ]
+                                    </span>
+                                    {renderInlineMarkdown(parts[1] || "")}
+                                  </span>
+                                )
+                              }
+                            } else {
+                              const percentMatch = lineContent.match(/(\d+)%/)
+                              if (percentMatch) {
+                                const parts = lineContent.split(percentMatch[0])
+                                processedLine = (
+                                  <span>
+                                    {renderInlineMarkdown(parts[0])}
+                                    {percentMatch[0]}
+                                    <span className="text-primary font-bold mx-2 bg-primary/10 px-2 py-0.5 rounded text-xs">
+                                      [ RM de Alumno ]
+                                    </span>
+                                    {renderInlineMarkdown(parts[1] || "")}
+                                  </span>
+                                )
+                              }
+                            }
+
+                            if (isH1) {
+                              return (
+                                <h3 key={idx} className="font-black italic uppercase text-2xl text-primary mt-8 mb-4 flex items-center gap-3">
+                                  <span className="w-1.5 h-8 bg-primary rounded-full shadow-[0_0_10px_rgba(249,115,22,0.5)]" />
+                                  {processedLine}
+                                </h3>
+                              )
+                            }
+                            if (isH2) {
+                              return (
+                                <h4 key={idx} className="font-bold text-lg text-foreground mt-6 mb-2 flex items-center gap-2">
+                                  <span className="w-1 h-5 bg-primary/60 rounded-full" />
+                                  {processedLine}
+                                </h4>
+                              )
+                            }
+                            if (isList) {
+                              return (
+                                <div key={idx} className="flex items-start gap-3 my-2 pl-4 group">
+                                  <div className="mt-2 w-1.5 h-1.5 rounded-full bg-primary/60 group-hover:bg-primary transition-colors shrink-0" />
+                                  <p className="text-foreground/90 leading-snug m-0 flex-1">{processedLine}</p>
+                                </div>
+                              )
+                            }
+                            if (isOldTitle) {
+                              return (
+                                <h4 key={idx} className="font-black italic uppercase text-lg text-primary mt-8 mb-3 first:mt-0 flex items-center gap-3">
+                                  <span className="w-1 h-6 bg-primary rounded-full" />
+                                  {processedLine}
+                                </h4>
+                              )
+                            }
+                            
+                            return (
+                              <p key={idx} className="text-foreground/80 leading-relaxed my-1">
+                                {processedLine}
+                              </p>
+                            )
+                          })
+                        })()}
                       </div>
                     </TabsContent>
                   </Tabs>
                 </div>
 
-                {/* Links */}
-                <div className="space-y-2">
-                  <Label>Videos de referencia</Label>
-                  {dia.links.map(l => (
-                    <div key={l.id} className="flex items-center gap-2 group">
-                      <div className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-secondary/30 rounded-lg text-sm">
-                        <ExternalLink className="w-3.5 h-3.5 text-primary shrink-0" />
-                        <a href={l.url} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate">
-                          {l.titulo}
-                        </a>
-                      </div>
-                      {deletingLinkId === l.id ? (
-                        <div className="h-7 w-7 flex items-center justify-center">
-                          <span className="w-3 h-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                {/* Legacy Links (Retrocompatibility) */}
+                {dia.links.length > 0 && (
+                  <div className="space-y-2 mt-4 pt-4 border-t border-border/50">
+                    <Label className="text-muted-foreground">Videos de referencia antiguos</Label>
+                    <p className="text-[10px] text-muted-foreground/80 mb-2">
+                      De ahora en más, usá el botón de "Enlace" en la barra de herramientas para poner videos directamente adentro del texto.
+                    </p>
+                    {dia.links.map(l => (
+                      <div key={l.id} className="flex items-center gap-2 group">
+                        <div className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-secondary/30 rounded-lg text-sm">
+                          <ExternalLink className="w-3.5 h-3.5 text-primary shrink-0" />
+                          <a href={l.url} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate">
+                            {l.titulo}
+                          </a>
                         </div>
-                      ) : (
-                        <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 hover:text-destructive"
-                          onClick={() => handleDeleteLink(l.id)}>
-                          <X className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <div className="flex gap-2">
-                    <Input placeholder="Título" value={newLinkTitulo} onChange={e => setNewLinkTitulo(e.target.value)}
-                      className="bg-secondary/50 text-sm" disabled={isAddingLink} />
-                    <Input placeholder="URL" value={newLinkUrl} onChange={e => setNewLinkUrl(e.target.value)}
-                      className="bg-secondary/50 text-sm" disabled={isAddingLink} />
-                    <Button size="icon" variant="outline" onClick={handleAddLink} disabled={isAddingLink || !newLinkTitulo || !newLinkUrl}>
-                      {isAddingLink ? <span className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" /> : <LinkIcon className="w-4 h-4" />}
-                    </Button>
+                        {deletingLinkId === l.id ? (
+                          <div className="h-7 w-7 flex items-center justify-center">
+                            <span className="w-3 h-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                          </div>
+                        ) : (
+                          <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 hover:text-destructive"
+                            onClick={() => handleDeleteLink(l.id)}>
+                            <X className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                </div>
+                )}
               </>
             ) : (
               <div className="py-8 text-center text-muted-foreground bg-secondary/20 rounded-lg">

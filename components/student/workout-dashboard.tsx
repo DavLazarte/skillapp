@@ -312,15 +312,52 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                       return `${m}:${s.toString().padStart(2, "0")}`
                     }
 
+                    // Inline Markdown Parsers
+                    const renderBoldItalic = (text: string) => {
+                      const parts = text.split(/(\*\*.*?\*\*)/g)
+                      return parts.map((part, i) => {
+                        if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+                          return <strong key={i} className="font-bold text-foreground">{part.slice(2, -2)}</strong>
+                        }
+                        const italicParts = part.split(/(\*.*?\*)/g)
+                        return italicParts.map((ip, j) => {
+                          if (ip.startsWith("*") && ip.endsWith("*") && ip.length > 2) {
+                            return <em key={j} className="italic text-foreground/90">{ip.slice(1, -1)}</em>
+                          }
+                          return ip
+                        })
+                      })
+                    }
+
+                    const renderInlineMarkdown = (text: string) => {
+                      const parts = text.split(/(\[.*?\]\(.*?\))/g)
+                      return parts.map((part, i) => {
+                        const linkMatch = part.match(/\[(.*?)\]\((.*?)\)/)
+                        if (linkMatch) {
+                          return (
+                            <a key={i} href={linkMatch[2]} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium inline-flex items-center gap-1 bg-primary/10 px-1.5 py-0.5 rounded-md transition-colors hover:bg-primary/20">
+                              {renderBoldItalic(linkMatch[1])}
+                            </a>
+                          )
+                        }
+                        return <span key={i}>{renderBoldItalic(part)}</span>
+                      })
+                    }
+
                     // Parser State
                     let activeRMContext: string | null = null
                     
                     return selectedDayData.contenido.split("\n").map((line: string, idx: number) => {
+                      if (!line.trim()) {
+                        return <div key={idx} className="h-4" /> // Respetar saltos de línea (enters)
+                      }
+
                       const lowerLine = line.toLowerCase()
                       
                       // 1. Detect Context Shift
-                      if (lowerLine.includes("clean") || lowerLine.includes("squat")) {
-                        // "clean and jerk" overrides clean
+                      if (lowerLine.includes("ohs") || lowerLine.includes("over head squat") || lowerLine.includes("overhead squat")) {
+                        activeRMContext = "Snatch"
+                      } else if (lowerLine.includes("clean") || lowerLine.includes("squat")) {
                         if (lowerLine.includes("jerk")) activeRMContext = "Jerk"
                         else activeRMContext = "Clean"
                       } else if (lowerLine.includes("snatch")) {
@@ -329,91 +366,170 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                         activeRMContext = "Jerk"
                       }
 
-                      // 2. Process Line
-                      let processedLine: React.ReactNode = line
+                      // 2. Extract Block Formatting
+                      let lineContent = line
+                      let isH1 = false
+                      let isH2 = false
+                      let isList = false
+                      let isOldTitle = false
 
-                      // Check for running
-                      if (lowerLine.includes("5km")) {
+                      if (line.startsWith("# ")) {
+                        isH1 = true
+                        lineContent = line.substring(2)
+                      } else if (line.startsWith("## ")) {
+                        isH2 = true
+                        lineContent = line.substring(3)
+                      } else if (line.startsWith("- ")) {
+                        isList = true
+                        lineContent = line.substring(2)
+                      } else if (line.startsWith("**") && line.endsWith("**") && line.length > 4 && !line.includes(" ")) {
+                        isOldTitle = true
+                        lineContent = line.substring(2, line.length - 2)
+                      }
+
+                      // 3. Process Line & Inject Badges
+                      let processedLine: React.ReactNode = lineContent
+                      const lowerLineContent = lineContent.toLowerCase()
+
+                      if (lowerLineContent.includes("5km")) {
                         const pb = getRM("5km")
                         processedLine = (
                           <span>
-                            {line} <span className="text-primary font-bold ml-2 bg-primary/10 px-2 py-0.5 rounded text-xs">[ PB: {pb ? formatTime(pb) + " min" : "Sin RM"} ]</span>
+                            {renderInlineMarkdown(lineContent)} <span className="text-primary font-bold ml-2 bg-primary/10 px-2 py-0.5 rounded text-xs">[ PB: {pb ? formatTime(pb) + " min" : "Sin RM"} ]</span>
                           </span>
                         )
-                      } else if (lowerLine.includes("10k")) {
+                      } else if (lowerLineContent.includes("10k")) {
                         const pb = getRM("10k")
                         processedLine = (
                           <span>
-                            {line} <span className="text-primary font-bold ml-2 bg-primary/10 px-2 py-0.5 rounded text-xs">[ PB: {pb ? formatTime(pb) + " min" : "Sin RM"} ]</span>
+                            {renderInlineMarkdown(lineContent)} <span className="text-primary font-bold ml-2 bg-primary/10 px-2 py-0.5 rounded text-xs">[ PB: {pb ? formatTime(pb) + " min" : "Sin RM"} ]</span>
                           </span>
                         )
-                      } 
-                      // Check for percentages
-                      else {
-                        const percentMatch = line.match(/(\d+)%/)
+                      } else if (lowerLineContent.match(/(\d+)\s*m\s*(?:rpe|rp)\s*(\d+)/i)) {
+                        const rpMatch = lineContent.match(/(\d+)\s*m\s*(?:rpe|rp)\s*(\d+)/i)
+                        if (rpMatch) {
+                          const distanceMeters = parseInt(rpMatch[1])
+                          const rpeValue = parseInt(rpMatch[2])
+                          const rm10k = getRM("10k")
+                          const rm5k = getRM("5km")
+                          
+                          let baseTimeSeconds = 0
+                          let baseDistance = 0
+                          
+                          if (rm10k) {
+                            baseTimeSeconds = rm10k
+                            baseDistance = 10000
+                          } else if (rm5k) {
+                            baseTimeSeconds = rm5k
+                            baseDistance = 5000
+                          }
+                          
+                          if (baseTimeSeconds > 0 && rpeValue > 0 && rpeValue <= 10) {
+                            const basePacePerMeter = baseTimeSeconds / baseDistance
+                            const baseTimeForTarget = distanceMeters * basePacePerMeter
+                            const targetTime = baseTimeForTarget * (rpeValue / 10)
+                            
+                            const parts = lineContent.split(rpMatch[0])
+                            processedLine = (
+                              <span>
+                                {renderInlineMarkdown(parts[0])}
+                                {rpMatch[0]}
+                                <span className="text-primary font-bold mx-2 bg-primary/10 px-2 py-0.5 rounded text-xs shadow-sm">
+                                  [ Obj: {formatTime(targetTime)} min ]
+                                </span>
+                                {renderInlineMarkdown(parts[1] || "")}
+                              </span>
+                            )
+                          } else {
+                            const parts = lineContent.split(rpMatch[0])
+                            processedLine = (
+                              <span>
+                                {renderInlineMarkdown(parts[0])}
+                                {rpMatch[0]}
+                                <span className="text-muted-foreground/60 italic mx-2 text-xs">
+                                  [ Sin RM para Predictor ]
+                                </span>
+                                {renderInlineMarkdown(parts[1] || "")}
+                              </span>
+                            )
+                          }
+                        }
+                      } else {
+                        const percentMatch = lineContent.match(/(\d+)%/)
                         if (percentMatch && activeRMContext) {
                           const percent = parseInt(percentMatch[1])
                           const maxRM = getRM(activeRMContext)
                           if (maxRM) {
                             const calculatedWeight = Math.round(((maxRM * percent) / 100) * 10) / 10
-                            // Split line to insert badge right after the percentage
-                            const parts = line.split(percentMatch[0])
+                            const parts = lineContent.split(percentMatch[0])
                             processedLine = (
                               <span>
-                                {parts[0]}{percentMatch[0]}
+                                {renderInlineMarkdown(parts[0])}
+                                {percentMatch[0]}
                                 <span className="text-primary font-bold mx-2 bg-primary/10 px-2 py-0.5 rounded text-xs">
                                   [ {calculatedWeight}kg ]
                                 </span>
-                                {parts[1]}
+                                {renderInlineMarkdown(parts[1] || "")}
                               </span>
                             )
                           } else {
-                            // Split line to insert "Sin RM" badge
-                            const parts = line.split(percentMatch[0])
+                            const parts = lineContent.split(percentMatch[0])
                             processedLine = (
                               <span>
-                                {parts[0]}{percentMatch[0]}
+                                {renderInlineMarkdown(parts[0])}
+                                {percentMatch[0]}
                                 <span className="text-muted-foreground/60 italic mx-2 text-xs">
                                   [ Sin RM de {activeRMContext} ]
                                 </span>
-                                {parts[1]}
+                                {renderInlineMarkdown(parts[1] || "")}
                               </span>
                             )
                           }
+                        } else {
+                          processedLine = renderInlineMarkdown(lineContent)
                         }
                       }
 
-                      // 3. Render Formatting
-                      if (line.startsWith("**") && line.endsWith("**")) {
+                      // 4. Render Block Formatting
+                      if (isH1) {
                         return (
-                          <h4 key={idx} className="font-black italic uppercase text-lg text-primary mt-8 first:mt-0 flex items-center gap-3">
+                          <h3 key={idx} className="font-black italic uppercase text-2xl text-primary mt-8 mb-4 flex items-center gap-3">
+                            <span className="w-1.5 h-8 bg-primary rounded-full shadow-[0_0_10px_rgba(249,115,22,0.5)]" />
+                            {processedLine}
+                          </h3>
+                        )
+                      }
+                      if (isH2) {
+                        return (
+                          <h4 key={idx} className="font-bold text-lg text-foreground mt-6 mb-2 flex items-center gap-2">
+                            <span className="w-1 h-5 bg-primary/60 rounded-full" />
+                            {processedLine}
+                          </h4>
+                        )
+                      }
+                      if (isList) {
+                        return (
+                          <div key={idx} className="flex items-start gap-3 my-2 pl-4 group">
+                            <div className="mt-2 w-1.5 h-1.5 rounded-full bg-primary/60 group-hover:bg-primary transition-colors shrink-0" />
+                            <p className="text-foreground/90 leading-snug m-0 flex-1">{processedLine}</p>
+                          </div>
+                        )
+                      }
+                      // Retrocompatibility for the old **TITLE** full-line format
+                      if (isOldTitle) {
+                        return (
+                          <h4 key={idx} className="font-black italic uppercase text-lg text-primary mt-8 mb-3 first:mt-0 flex items-center gap-3">
                             <span className="w-1 h-6 bg-primary rounded-full" />
                             {processedLine}
                           </h4>
                         )
                       }
-                      if (line.startsWith("- ")) {
-                        return (
-                          <div key={idx} className="flex items-start gap-3 my-2 pl-4">
-                            <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary/60" />
-                            <p className="text-foreground/90 leading-snug m-0">{processedLine}</p>
-                          </div>
-                        )
-                      }
-                      if (line.startsWith("*") && line.endsWith("*")) {
-                        return (
-                          <div key={idx} className="bg-primary/5 border-l-2 border-primary/30 p-4 rounded-r-lg my-6">
-                            <p className="text-muted-foreground italic m-0">
-                              {processedLine}
-                            </p>
-                          </div>
-                        )
-                      }
-                      return line ? (
-                        <p key={idx} className="text-foreground/80 leading-relaxed mb-4">
+                      
+                      return (
+                        <p key={idx} className="text-foreground/80 leading-relaxed my-1">
                           {processedLine}
                         </p>
-                      ) : null
+                      )
                     })
                   })()}
                 </div>
