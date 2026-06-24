@@ -77,12 +77,12 @@ function KanbanColumn({
 
   return (
     <div className={cn(
-      "flex-1 min-w-[280px] max-w-sm rounded-xl border-2 transition-colors flex flex-col",
+      "flex-1 min-w-[280px] max-w-sm rounded-xl border-2 transition-colors flex flex-col max-h-[calc(100vh-220px)]",
       ESTADO_COLORS[estado],
       isOver && "border-primary/60 bg-primary/10"
     )}>
       {/* Column header */}
-      <div className="p-4 border-b border-inherit">
+      <div className="p-4 border-b border-inherit shrink-0">
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">
             {ESTADO_LABELS[estado]}
@@ -104,7 +104,7 @@ function KanbanColumn({
       </div>
 
       {/* Cards */}
-      <div ref={setNodeRef} className="flex-1 p-3 space-y-2 min-h-[200px]">
+      <div ref={setNodeRef} className="flex-1 p-3 space-y-2 min-h-[200px] overflow-y-auto">
         <SortableContext items={semanas.map(s => s.id)} strategy={verticalListSortingStrategy}>
           {semanas.map(s => (
             <SortableCard
