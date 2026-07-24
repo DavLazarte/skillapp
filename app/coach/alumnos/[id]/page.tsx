@@ -19,8 +19,11 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel
 } from "@/components/ui/select"
-import { alumnos, rms as initialRms, comentarios as initialComentarios, semanas, pagos, ejerciciosDisponibles, coach } from "@/lib/mock-data"
+import { alumnos, rms as initialRms, comentarios as initialComentarios, semanas, pagos, coach } from "@/lib/mock-data"
+import { CATEGORIAS_RM, isCapacidad } from "@/lib/constants"
 import { RM, Comentario } from "@/lib/types"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { AvatarCircle } from "@/components/shared/avatar-circle"
@@ -227,14 +230,19 @@ export default function AlumnoDetailPage({ params }: { params: Promise<{ id: str
                           <SelectValue placeholder="Seleccionar ejercicio" />
                         </SelectTrigger>
                         <SelectContent>
-                          {ejerciciosDisponibles.map((ej) => (
-                            <SelectItem key={ej} value={ej}>{ej}</SelectItem>
+                          {Object.entries(CATEGORIAS_RM).map(([categoria, ejercicios]) => (
+                            <SelectGroup key={categoria}>
+                              <SelectLabel className="font-bold text-primary">{categoria}</SelectLabel>
+                              {ejercicios.map((ej) => (
+                                <SelectItem key={ej} value={ej}>{ej}</SelectItem>
+                              ))}
+                            </SelectGroup>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Peso (kg)</Label>
+                      <Label>{isCapacidad(newRm.ejercicio) ? "Repeticiones" : "Peso (kg)"}</Label>
                       <Input
                         type="number"
                         value={newRm.kg || ""}
@@ -264,31 +272,39 @@ export default function AlumnoDetailPage({ params }: { params: Promise<{ id: str
                   No hay RMs registrados para este alumno
                 </div>
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {rms.map((rm, idx) => {
-                    const historicalMax = Math.max(...rms.filter(r => r.ejercicio === rm.ejercicio).map(r => r.kg))
-                    const percentage = (rm.kg / historicalMax) * 100
+                <div className="space-y-6">
+                  {Object.entries(CATEGORIAS_RM).map(([categoria, ejercicios]) => {
+                    const categoryRMs = rms.filter(rm => ejercicios.includes(rm.ejercicio))
+                    if (categoryRMs.length === 0) return null
+
                     return (
-                      <Card key={idx} className="bg-secondary/30 border-border">
-                        <CardContent className="p-4">
-                          <div className="flex justify-between items-start mb-2">
-                            <span className="text-sm text-muted-foreground">{rm.ejercicio}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {format(parseISO(rm.fecha), "d MMM yy", { locale: es })}
-                            </span>
-                          </div>
-                          <div className="text-3xl font-bold text-primary">{rm.kg} kg</div>
-                          <div className="mt-2">
-                            <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-primary rounded-full"
-                                style={{ width: `${percentage}%` }}
-                              />
-                            </div>
-                            <span className="text-xs text-muted-foreground">{percentage.toFixed(0)}% del max</span>
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <div key={categoria} className="space-y-3">
+                        <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground border-b border-border/50 pb-2">
+                          {categoria}
+                        </h4>
+                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                          {categoryRMs.map((rm, idx) => {
+                            const historicalMax = Math.max(...rms.filter(r => r.ejercicio === rm.ejercicio).map(r => r.kg))
+                            const percentage = (rm.kg / historicalMax) * 100
+                            return (
+                              <div key={idx} className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg border border-border/50 hover:border-primary/30 transition-colors">
+                                <div>
+                                  <p className="font-semibold text-sm">{rm.ejercicio}</p>
+                                  <p className="text-xs text-muted-foreground">{format(parseISO(rm.fecha), "d MMM yy", { locale: es })}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-bold text-primary text-lg leading-none">
+                                    {rm.kg} <span className="text-xs font-normal text-muted-foreground">{isCapacidad(rm.ejercicio) ? "reps" : "kg"}</span>
+                                  </p>
+                                  {percentage < 100 && (
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">{percentage.toFixed(0)}% del max</p>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
                     )
                   })}
                 </div>

@@ -25,7 +25,7 @@ export async function createAlumno(data: {
         avatar,
         estado: data.estado,
         cuota: data.cuota,
-        vencimiento: data.vencimiento ? new Date(data.vencimiento) : null,
+        vencimiento: data.vencimiento ? new Date(data.vencimiento + "T12:00:00") : null,
         telefono: data.telefono,
         fechaInicio: new Date(),
       },
@@ -61,7 +61,7 @@ export async function updateAlumno(id: string, data: {
         telefono: data.telefono,
         cuota: data.cuota,
         estado: data.estado,
-        vencimiento: data.vencimiento === null ? null : data.vencimiento ? new Date(data.vencimiento) : undefined,
+        vencimiento: data.vencimiento === null ? null : data.vencimiento ? new Date(data.vencimiento + "T12:00:00") : undefined,
       },
     })
     if (data.planIds !== undefined) {

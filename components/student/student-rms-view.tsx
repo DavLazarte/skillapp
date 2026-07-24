@@ -19,13 +19,14 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { addRM, updateRM, deleteRM } from "@/lib/actions"
 import { toast } from "sonner"
-
-const EJERCICIOS = ["Snatch", "Clean", "Jerk", "5km", "10k"]
+import { CATEGORIAS_RM, isCapacidad } from "@/lib/constants"
 
 // Helper para formatear segundos a MM:SS
 const formatTime = (totalSeconds: number) => {
@@ -151,8 +152,13 @@ export function StudentRMsView({ alumno, rms }: any) {
                     <SelectValue placeholder="Seleccionar..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {EJERCICIOS.map(e => (
-                      <SelectItem key={e} value={e}>{e}</SelectItem>
+                    {Object.entries(CATEGORIAS_RM).map(([categoria, ejercicios]) => (
+                      <SelectGroup key={categoria}>
+                        <SelectLabel className="font-bold text-primary">{categoria}</SelectLabel>
+                        {ejercicios.map((e) => (
+                          <SelectItem key={e} value={e}>{e}</SelectItem>
+                        ))}
+                      </SelectGroup>
                     ))}
                   </SelectContent>
                 </Select>
@@ -186,7 +192,7 @@ export function StudentRMsView({ alumno, rms }: any) {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <Label>Peso (kg)</Label>
+                  <Label>{isCapacidad(ejercicio) ? "Repeticiones" : "Peso (kg)"}</Label>
                   <Input 
                     type="number" 
                     step="0.5" 
@@ -262,56 +268,65 @@ export function StudentRMsView({ alumno, rms }: any) {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {latestRMs.map((rm: any, idx) => {
-            const isTime = rm.ejercicio === "5km" || rm.ejercicio === "10k"
-            
-            // For time, lower is better. For weight, higher is better.
-            const allForExercise = rms.filter((r: any) => r.ejercicio === rm.ejercicio)
-            const historicalBest = isTime 
-              ? Math.min(...allForExercise.map((r: any) => r.kg))
-              : Math.max(...allForExercise.map((r: any) => r.kg))
+        <div className="space-y-8">
+          {Object.entries(CATEGORIAS_RM).map(([categoria, ejercicios]) => {
+            const categoryRMs = latestRMs.filter((rm: any) => ejercicios.includes(rm.ejercicio))
+            if (categoryRMs.length === 0) return null
             
             return (
-              <Card key={idx} className="bg-card/50 border-border/50 hover:border-primary/30 transition-all group overflow-hidden relative">
-                <div className="h-1 bg-gradient-to-r from-primary to-primary/20 w-full opacity-50 group-hover:opacity-100 transition-opacity" />
-                
-                {/* Actions overlay */}
-                <div className="absolute top-4 right-4 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => handleOpenEdit(rm)} className="p-1.5 bg-secondary/80 hover:bg-primary text-foreground hover:text-primary-foreground rounded-md transition-colors backdrop-blur-sm">
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={() => handleDelete(rm.id)} className="p-1.5 bg-secondary/80 hover:bg-destructive text-foreground hover:text-destructive-foreground rounded-md transition-colors backdrop-blur-sm">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+              <div key={categoria} className="space-y-3">
+                <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground border-b border-border/50 pb-2 flex items-center gap-2">
+                  <div className="w-1.5 h-4 bg-primary rounded-full"></div>
+                  {categoria}
+                </h4>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {categoryRMs.map((rm: any, idx) => {
+                    const isTime = rm.ejercicio === "5km" || rm.ejercicio === "10k"
+                    const allForExercise = rms.filter((r: any) => r.ejercicio === rm.ejercicio)
+                    const historicalBest = isTime 
+                      ? Math.min(...allForExercise.map((r: any) => r.kg))
+                      : Math.max(...allForExercise.map((r: any) => r.kg))
+                    
+                    return (
+                      <div key={idx} className="group relative flex items-center justify-between p-4 bg-card/50 rounded-xl border border-border/50 hover:border-primary/30 transition-all overflow-hidden">
+                        <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary to-primary/20 opacity-50 group-hover:opacity-100 transition-opacity" />
+                        
+                        {/* Info */}
+                        <div className="pl-3">
+                          <p className="font-bold text-muted-foreground uppercase text-sm tracking-tight mb-1">{rm.ejercicio}</p>
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-2xl font-black text-primary">
+                              {isTime ? formatTime(rm.kg) : rm.kg}
+                            </span>
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {isTime ? "min" : (isCapacidad(rm.ejercicio) ? "reps" : "kg")}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            Mejor: <span className="font-semibold text-success">{isTime ? formatTime(historicalBest) : historicalBest}</span>
+                          </p>
+                        </div>
 
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4 pr-16">
-                    <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                      {isTime ? <Clock className="w-6 h-6 text-primary" /> : <Dumbbell className="w-6 h-6 text-primary" />}
-                    </div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground bg-secondary/50 px-2 py-1 rounded">
-                      {format(new Date(rm.fecha), "d MMM yyyy", { locale: es })}
-                    </span>
-                  </div>
-                  <h3 className="font-bold text-muted-foreground uppercase tracking-tight mb-1">{rm.ejercicio}</h3>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-black italic text-primary">
-                      {isTime ? formatTime(rm.kg) : rm.kg}
-                    </span>
-                    <span className="text-lg font-medium text-muted-foreground italic">
-                      {isTime ? "min" : "kg"}
-                    </span>
-                  </div>
-                  <div className="mt-4 pt-4 border-t border-border/50 flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground uppercase font-bold">Mejor Histórico</span>
-                    <span className="font-bold text-success">
-                      {isTime ? formatTime(historicalBest) : `${historicalBest} kg`}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
+                        {/* Date & Actions */}
+                        <div className="flex flex-col items-end justify-between h-full space-y-2">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded">
+                            {format(new Date(rm.fecha), "d MMM yy", { locale: es })}
+                          </span>
+                          
+                          <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleOpenEdit(rm)} className="p-1.5 bg-secondary/80 hover:bg-primary text-foreground hover:text-primary-foreground rounded-md transition-colors" title="Editar">
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => handleDelete(rm.id)} className="p-1.5 bg-secondary/80 hover:bg-destructive text-foreground hover:text-destructive-foreground rounded-md transition-colors" title="Eliminar">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             )
           })}
         </div>

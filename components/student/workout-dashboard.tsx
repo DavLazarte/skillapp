@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils"
 import { toggleWorkoutCompletion, postComment } from "@/lib/actions"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
-
+import { EJERCICIOS_PARSER_SORTED, isCapacidad } from "@/lib/constants"
 export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, config }: any) {
   // Check for expiration
   const today = new Date()
@@ -357,13 +357,13 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                       // 1. Detect Context Shift
                       if (lowerLine.includes("ohs") || lowerLine.includes("over head squat") || lowerLine.includes("overhead squat")) {
                         activeRMContext = "Snatch"
-                      } else if (lowerLine.includes("clean") || lowerLine.includes("squat")) {
-                        if (lowerLine.includes("jerk")) activeRMContext = "Jerk"
-                        else activeRMContext = "Clean"
-                      } else if (lowerLine.includes("snatch")) {
-                        activeRMContext = "Snatch"
-                      } else if (lowerLine.includes("jerk")) {
-                        activeRMContext = "Jerk"
+                      }
+                      
+                      for (const ej of EJERCICIOS_PARSER_SORTED) {
+                        if (lowerLine.includes(ej.toLowerCase())) {
+                          activeRMContext = ej
+                          break
+                        }
                       }
 
                       // 2. Extract Block Formatting
@@ -467,7 +467,7 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                                 {renderInlineMarkdown(parts[0])}
                                 {percentMatch[0]}
                                 <span className="text-primary font-bold mx-2 bg-primary/10 px-2 py-0.5 rounded text-xs">
-                                  [ {calculatedWeight}kg ]
+                                  [ {calculatedWeight} {isCapacidad(activeRMContext) ? "reps" : "kg"} ]
                                 </span>
                                 {renderInlineMarkdown(parts[1] || "")}
                               </span>
