@@ -45,8 +45,10 @@ export function StudentRMsView({ alumno, rms }: any) {
   const [kg, setKg] = useState("")
   const [minutes, setMinutes] = useState("")
   const [seconds, setSeconds] = useState("")
+  const [customName, setCustomName] = useState("")
+  const [customUnit, setCustomUnit] = useState("reps")
 
-  const isTimeBased = ejercicio === "5km" || ejercicio === "10k"
+  const isTimeBased = ejercicio === "5km" || ejercicio === "10k" || (ejercicio === "Otro" && customUnit === "tiempo")
 
   // Group RMs by exercise and get the latest for each
   const groupedRMs = rms.reduce((acc: any, rm: any) => {
@@ -64,19 +66,42 @@ export function StudentRMsView({ alumno, rms }: any) {
     setKg("")
     setMinutes("")
     setSeconds("")
+    setCustomName("")
+    setCustomUnit("reps")
   }
 
   const handleOpenEdit = (rm: any) => {
     setEditingId(rm.id)
-    setEjercicio(rm.ejercicio)
-    if (rm.ejercicio === "5km" || rm.ejercicio === "10k") {
-      setMinutes(Math.floor(rm.kg / 60).toString())
-      setSeconds(Math.floor(rm.kg % 60).toString())
-      setKg("")
+    const isCustom = rm.ejercicio.endsWith(" (Tiempo)") || rm.ejercicio.endsWith(" (Reps)")
+    
+    if (isCustom) {
+      setEjercicio("Otro")
+      const isTime = rm.ejercicio.endsWith(" (Tiempo)")
+      setCustomName(rm.ejercicio.replace(" (Tiempo)", "").replace(" (Reps)", ""))
+      setCustomUnit(isTime ? "tiempo" : "reps")
+      
+      if (isTime) {
+        setMinutes(Math.floor(rm.kg / 60).toString())
+        setSeconds(Math.floor(rm.kg % 60).toString())
+        setKg("")
+      } else {
+        setKg(rm.kg.toString())
+        setMinutes("")
+        setSeconds("")
+      }
     } else {
-      setKg(rm.kg.toString())
-      setMinutes("")
-      setSeconds("")
+      setEjercicio(rm.ejercicio)
+      setCustomName("")
+      setCustomUnit("reps")
+      if (rm.ejercicio === "5km" || rm.ejercicio === "10k") {
+        setMinutes(Math.floor(rm.kg / 60).toString())
+        setSeconds(Math.floor(rm.kg % 60).toString())
+        setKg("")
+      } else {
+        setKg(rm.kg.toString())
+        setMinutes("")
+        setSeconds("")
+      }
     }
     setIsOpen(true)
   }
@@ -93,20 +118,36 @@ export function StudentRMsView({ alumno, rms }: any) {
     if (!ejercicio) return
     
     let finalValue = 0
-    if (isTimeBased) {
-      if (!minutes && !seconds) return
-      finalValue = (parseInt(minutes || "0") * 60) + parseInt(seconds || "0")
+    let finalEjercicio = ejercicio
+    
+    if (ejercicio === "Otro") {
+      if (!customName.trim()) return
+      const suffix = customUnit === "tiempo" ? " (Tiempo)" : " (Reps)"
+      finalEjercicio = customName.trim() + suffix
+      
+      if (customUnit === "tiempo") {
+        if (!minutes && !seconds) return
+        finalValue = (parseInt(minutes || "0") * 60) + parseInt(seconds || "0")
+      } else {
+        if (!kg) return
+        finalValue = parseFloat(kg)
+      }
     } else {
-      if (!kg) return
-      finalValue = parseFloat(kg)
+      if (isTimeBased) {
+        if (!minutes && !seconds) return
+        finalValue = (parseInt(minutes || "0") * 60) + parseInt(seconds || "0")
+      } else {
+        if (!kg) return
+        finalValue = parseFloat(kg)
+      }
     }
 
     setIsSubmitting(true)
     let result
     if (editingId) {
-      result = await updateRM(editingId, alumno.id, { ejercicio, kg: finalValue })
+      result = await updateRM(editingId, alumno.id, { ejercicio: finalEjercicio, kg: finalValue })
     } else {
-      result = await addRM(alumno.id, ejercicio, finalValue)
+      result = await addRM(alumno.id, finalEjercicio, finalValue)
     }
 
     if (result.success) {
@@ -140,7 +181,7 @@ export function StudentRMsView({ alumno, rms }: any) {
               Nueva Marca
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-card border-border/50">
+          <DialogContent className="bg-card border-border/50" aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle>{editingId ? "Editar Marca" : "Registrar Nueva Marca"}</DialogTitle>
             </DialogHeader>
@@ -163,6 +204,32 @@ export function StudentRMsView({ alumno, rms }: any) {
                   </SelectContent>
                 </Select>
               </div>
+
+              {ejercicio === "Otro" && (
+                <div className="space-y-4 border-t border-border/30 pt-3">
+                  <div className="space-y-2">
+                    <Label>Nombre de la capacidad / WOD</Label>
+                    <Input 
+                      value={customName}
+                      onChange={(e) => setCustomName(e.target.value)}
+                      placeholder="Ej: Murf, Cindy, Fran, 50 Pull ups unbroken"
+                      className="bg-secondary/30"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tipo de Unidad / Medición</Label>
+                    <Select value={customUnit} onValueChange={setCustomUnit}>
+                      <SelectTrigger className="bg-secondary/30">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="reps">Repeticiones / Carga / Cantidad</SelectItem>
+                        <SelectItem value="tiempo">Tiempo (minutos:segundos)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
 
               {isTimeBased ? (
                 <div className="grid grid-cols-2 gap-4">
@@ -192,7 +259,7 @@ export function StudentRMsView({ alumno, rms }: any) {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <Label>{isCapacidad(ejercicio) ? "Repeticiones" : "Peso (kg)"}</Label>
+                  <Label>{isCapacidad(ejercicio) || ejercicio === "Otro" ? "Valor / Repeticiones" : "Peso (kg)"}</Label>
                   <Input 
                     type="number" 
                     step="0.5" 
@@ -270,7 +337,12 @@ export function StudentRMsView({ alumno, rms }: any) {
       ) : (
         <div className="space-y-8">
           {Object.entries(CATEGORIAS_RM).map(([categoria, ejercicios]) => {
-            const categoryRMs = latestRMs.filter((rm: any) => ejercicios.includes(rm.ejercicio))
+            const categoryRMs = latestRMs.filter((rm: any) => {
+              if (categoria === "Capacidades") {
+                return ejercicios.includes(rm.ejercicio) || rm.ejercicio.endsWith(" (Tiempo)") || rm.ejercicio.endsWith(" (Reps)")
+              }
+              return ejercicios.includes(rm.ejercicio)
+            })
             if (categoryRMs.length === 0) return null
             
             return (
@@ -281,7 +353,7 @@ export function StudentRMsView({ alumno, rms }: any) {
                 </h4>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {categoryRMs.map((rm: any, idx) => {
-                    const isTime = rm.ejercicio === "5km" || rm.ejercicio === "10k"
+                    const isTime = rm.ejercicio === "5km" || rm.ejercicio === "10k" || rm.ejercicio.endsWith(" (Tiempo)")
                     const allForExercise = rms.filter((r: any) => r.ejercicio === rm.ejercicio)
                     const historicalBest = isTime 
                       ? Math.min(...allForExercise.map((r: any) => r.kg))
@@ -293,7 +365,9 @@ export function StudentRMsView({ alumno, rms }: any) {
                         
                         {/* Info */}
                         <div className="pl-3">
-                          <p className="font-bold text-muted-foreground uppercase text-sm tracking-tight mb-1">{rm.ejercicio}</p>
+                          <p className="font-bold text-muted-foreground uppercase text-sm tracking-tight mb-1">
+                            {rm.ejercicio.replace(" (Tiempo)", "").replace(" (Reps)", "")}
+                          </p>
                           <div className="flex items-baseline gap-1.5">
                             <span className="text-2xl font-black text-primary">
                               {isTime ? formatTime(rm.kg) : rm.kg}

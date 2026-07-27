@@ -14,14 +14,16 @@ function formatCurrency(amount: number) {
 }
 
 export function CoachDashboardView({ alumnos, semanas, comentarios, pagos, coach }: any) {
-  // Give the coach access to all plans for the WorkoutDashboard preview
+  // Give the coach access to all plans for the WorkoutDashboard preview if they haven't assigned any to themselves
   const allPlansMap = new Map()
   semanas.forEach((s: any) => {
     if (s.tipoPlan) allPlansMap.set(s.tipoPlanId, s.tipoPlan)
   })
-  const coachWithAllPlans = coach ? {
+  const coachWithPlans = coach ? {
     ...coach,
-    planes: Array.from(allPlansMap.values()).map(p => ({ tipoPlan: p }))
+    planes: coach.planes && coach.planes.length > 0 
+      ? coach.planes 
+      : Array.from(allPlansMap.values()).map(p => ({ tipoPlan: p }))
   } : null
 
   const activeStudents = alumnos.filter((a: any) => a.estado === "activo").length
@@ -104,7 +106,7 @@ export function CoachDashboardView({ alumnos, semanas, comentarios, pagos, coach
       </div>
 
       {/* Embedded Student View for Coach */}
-      {coachWithAllPlans && semanas.length > 0 && (
+      {coachWithPlans && semanas.length > 0 && (
         <div className="pt-4 pb-8 border-b border-border/50">
           <div className="mb-6 flex items-center justify-between">
             <div>
@@ -113,9 +115,9 @@ export function CoachDashboardView({ alumnos, semanas, comentarios, pagos, coach
             </div>
           </div>
           <WorkoutDashboard 
-            alumno={coachWithAllPlans} 
+            alumno={coachWithPlans} 
             semanas={semanas} 
-            asistencias={coachWithAllPlans.asistencias || []}
+            asistencias={coachWithPlans.asistencias || []}
             comentarios={comentarios}
           />
         </div>

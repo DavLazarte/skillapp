@@ -208,7 +208,7 @@ export function AlumnosView({
               <Plus className="w-4 h-4 mr-2" /> Nuevo Alumno
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-card border-border sm:max-w-lg">
+          <DialogContent className="bg-card border-border sm:max-w-lg" aria-describedby={undefined}>
             <DialogHeader><DialogTitle>Agregar nuevo alumno</DialogTitle></DialogHeader>
             <AlumnoForm planesDisponibles={planesDisponibles} onSubmit={handleCreate} isLoading={isLoading} />
           </DialogContent>
@@ -297,7 +297,7 @@ export function AlumnosView({
                           <Dumbbell className="w-4 h-4" />
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="max-w-[95vw] sm:max-w-[95vw] lg:max-w-7xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-secondary/50 hover:[&::-webkit-scrollbar-thumb]:bg-secondary/80 [&::-webkit-scrollbar-thumb]:rounded-full">
+                      <DialogContent className="max-w-[95vw] sm:max-w-[95vw] lg:max-w-7xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-secondary/50 hover:[&::-webkit-scrollbar-thumb]:bg-secondary/80 [&::-webkit-scrollbar-thumb]:rounded-full" aria-describedby={undefined}>
                         <DialogHeader className="sr-only">
                           <DialogTitle>RMs de {a.nombre}</DialogTitle>
                         </DialogHeader>
@@ -323,7 +323,7 @@ export function AlumnosView({
 
       {/* Edit Dialog */}
       <Dialog open={!!editingAlumno} onOpenChange={open => !open && setEditingAlumno(null)}>
-        <DialogContent className="bg-card border-border sm:max-w-lg">
+        <DialogContent className="bg-card border-border sm:max-w-lg" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Editar alumno</DialogTitle>
           </DialogHeader>

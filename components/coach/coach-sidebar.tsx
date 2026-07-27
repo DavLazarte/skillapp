@@ -17,6 +17,7 @@ import {
   X,
   Dumbbell,
   Layers,
+  User,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -27,6 +28,7 @@ const navItems = [
   { href: "/coach/planificacion", label: "Planificación", icon: Calendar },
   { href: "/coach/rms", label: "Mis RMs", icon: Dumbbell },
   { href: "/coach/pagos", label: "Pagos", icon: CreditCard },
+  { href: "/coach/perfil", label: "Mi Perfil", icon: User },
   { href: "/coach/config", label: "Configuración", icon: Settings },
 ];
 

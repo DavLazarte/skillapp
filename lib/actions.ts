@@ -357,6 +357,8 @@ export async function addRM(userId: string, ejercicio: string, kg: number) {
   try {
     await prisma.rM.create({ data: { userId, ejercicio, kg } })
     revalidatePath(`/alumno/${userId}/rms`)
+    revalidatePath("/coach/rms")
+    revalidatePath("/coach/alumnos")
     return { success: true }
   } catch {
     return { success: false, error: "No se pudo registrar el RM" }
@@ -370,6 +372,8 @@ export async function updateRM(id: string, userId: string, data: { ejercicio: st
       data: { ejercicio: data.ejercicio, kg: data.kg }
     })
     revalidatePath(`/alumno/${userId}/rms`)
+    revalidatePath("/coach/rms")
+    revalidatePath("/coach/alumnos")
     return { success: true }
   } catch {
     return { success: false, error: "No se pudo actualizar el RM" }
@@ -380,6 +384,8 @@ export async function deleteRM(id: string, userId: string) {
   try {
     await prisma.rM.delete({ where: { id } })
     revalidatePath(`/alumno/${userId}/rms`)
+    revalidatePath("/coach/rms")
+    revalidatePath("/coach/alumnos")
     return { success: true }
   } catch {
     return { success: false, error: "No se pudo eliminar el RM" }
@@ -443,5 +449,36 @@ export async function saveAppConfig(config: any) {
     return { success: true }
   } catch (err: any) {
     return { success: false, error: "Error al guardar configuración" }
+  }
+}
+
+export async function updateCoachProfile(id: string, data: {
+  nombre?: string
+  email?: string
+  planIds?: string[]
+}) {
+  try {
+    await prisma.user.update({
+      where: { id },
+      data: {
+        nombre: data.nombre,
+        email: data.email
+      }
+    })
+    
+    if (data.planIds !== undefined) {
+      await prisma.alumnoPlan.deleteMany({ where: { userId: id } })
+      if (data.planIds.length > 0) {
+        await prisma.alumnoPlan.createMany({
+          data: data.planIds.map(tipoPlanId => ({ userId: id, tipoPlanId }))
+        })
+      }
+    }
+    
+    revalidatePath("/coach")
+    revalidatePath("/coach/perfil")
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: "Error al actualizar perfil" }
   }
 }

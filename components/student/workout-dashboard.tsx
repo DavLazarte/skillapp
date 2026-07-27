@@ -296,11 +296,17 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                 {/* Workout Content */}
                 <div className="prose prose-invert prose-sm max-w-none">
                   {(() => {
-                    // Helper to get max RM
                     const getRM = (exercise: string) => {
-                      const allForExercise = alumno.rms.filter((r: any) => r.ejercicio === exercise)
+                      const allForExercise = alumno.rms.filter((r: any) => 
+                        r.ejercicio === exercise || 
+                        r.ejercicio === `${exercise} (Tiempo)` || 
+                        r.ejercicio === `${exercise} (Reps)`
+                      )
                       if (allForExercise.length === 0) return null
-                      if (exercise === "5km" || exercise === "10k") {
+                      const isTime = exercise === "5km" || 
+                                     exercise === "10k" || 
+                                     allForExercise[0].ejercicio.endsWith(" (Tiempo)")
+                      if (isTime) {
                         return Math.min(...allForExercise.map((r: any) => r.kg))
                       }
                       return Math.max(...allForExercise.map((r: any) => r.kg))
@@ -312,7 +318,15 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                       return `${m}:${s.toString().padStart(2, "0")}`
                     }
 
-                    // Inline Markdown Parsers
+                    const isExerciseCapacidad = (exerciseName: string) => {
+                      if (!exerciseName) return false
+                      if (isCapacidad(exerciseName)) return true
+                      return alumno.rms.some((r: any) => 
+                        r.ejercicio === `${exerciseName} (Tiempo)` || 
+                        r.ejercicio === `${exerciseName} (Reps)`
+                      )
+                    }
+
                     const renderBoldItalic = (text: string) => {
                       const parts = text.split(/(\*\*.*?\*\*)/g)
                       return parts.map((part, i) => {
@@ -344,6 +358,18 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                       })
                     }
 
+                    // Extract custom exercises from student RMs
+                    const customExercises = (alumno.rms || [])
+                      .map((r: any) => r.ejercicio)
+                      .filter((name: string) => name.endsWith(" (Tiempo)") || name.endsWith(" (Reps)"))
+                      .map((name: string) => name.replace(" (Tiempo)", "").replace(" (Reps)", ""))
+                      
+                    // Merge and sort by length descending
+                    const allSearchExercises = Array.from(new Set([
+                      ...customExercises,
+                      ...EJERCICIOS_PARSER_SORTED
+                    ])).sort((a, b) => b.length - a.length)
+
                     // Parser State
                     let activeRMContext: string | null = null
                     
@@ -355,14 +381,18 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                       const lowerLine = line.toLowerCase()
                       
                       // 1. Detect Context Shift
-                      if (lowerLine.includes("ohs") || lowerLine.includes("over head squat") || lowerLine.includes("overhead squat")) {
+                      if (lowerLine.includes("clean & jerk") || lowerLine.includes("clean and jerk") || lowerLine.includes("clean y jerk") || lowerLine.includes("c&j")) {
+                        activeRMContext = "Clean & Jerk"
+                      } else if (lowerLine.includes("strict press") || lowerLine.includes("press estricto")) {
+                        activeRMContext = "Press Estricto"
+                      } else if (lowerLine.includes("ohs") || lowerLine.includes("over head squat") || lowerLine.includes("overhead squat")) {
                         activeRMContext = "Snatch"
-                      }
-                      
-                      for (const ej of EJERCICIOS_PARSER_SORTED) {
-                        if (lowerLine.includes(ej.toLowerCase())) {
-                          activeRMContext = ej
-                          break
+                      } else {
+                        for (const ej of allSearchExercises) {
+                          if (lowerLine.includes(ej.toLowerCase())) {
+                            activeRMContext = ej
+                            break
+                          }
                         }
                       }
 
@@ -460,14 +490,26 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                           const percent = parseInt(percentMatch[1])
                           const maxRM = getRM(activeRMContext)
                           if (maxRM) {
-                            const calculatedWeight = Math.round(((maxRM * percent) / 100) * 10) / 10
+                            const isTime = activeRMContext === "5km" || 
+                                           activeRMContext === "10k" || 
+                                           alumno.rms.some((r: any) => r.ejercicio === `${activeRMContext} (Tiempo)`)
+                            
+                            const calculatedWeight = isTime
+                              ? Math.round((maxRM * percent) / 100)
+                              : Math.round(((maxRM * percent) / 100) * 10) / 10
+                            
+                            const formatValue = (val: number) => {
+                              if (isTime) return `${formatTime(val)} min`
+                              return `${val} ${isExerciseCapacidad(activeRMContext) ? "reps" : "kg"}`
+                            }
+
                             const parts = lineContent.split(percentMatch[0])
                             processedLine = (
                               <span>
                                 {renderInlineMarkdown(parts[0])}
                                 {percentMatch[0]}
                                 <span className="text-primary font-bold mx-2 bg-primary/10 px-2 py-0.5 rounded text-xs">
-                                  [ {calculatedWeight} {isCapacidad(activeRMContext) ? "reps" : "kg"} ]
+                                  [ {formatValue(calculatedWeight)} ]
                                 </span>
                                 {renderInlineMarkdown(parts[1] || "")}
                               </span>

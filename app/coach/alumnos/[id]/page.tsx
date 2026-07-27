@@ -37,6 +37,12 @@ function formatCurrency(amount: number) {
   return `$${amount.toLocaleString("es-AR")}`
 }
 
+function formatTime(totalSeconds: number) {
+  const m = Math.floor(totalSeconds / 60)
+  const s = Math.floor(totalSeconds % 60)
+  return `${m}:${s.toString().padStart(2, "0")}`
+}
+
 export default function AlumnoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const alumno = alumnos.find(a => a.id === id)
@@ -48,7 +54,12 @@ export default function AlumnoDetailPage({ params }: { params: Promise<{ id: str
   const [isEditing, setIsEditing] = useState(false)
   const [editedAlumno, setEditedAlumno] = useState(alumno)
   const [isRmDialogOpen, setIsRmDialogOpen] = useState(false)
-  const [newRm, setNewRm] = useState({ ejercicio: "", kg: 0, fecha: new Date().toISOString().split("T")[0] })
+  const [newRm, setNewRm] = useState({ ejercicio: "", fecha: new Date().toISOString().split("T")[0] })
+  const [rmMinutes, setRmMinutes] = useState("")
+  const [rmSeconds, setRmSeconds] = useState("")
+  const [rmKg, setRmKg] = useState("")
+  const [rmCustomName, setRmCustomName] = useState("")
+  const [rmCustomUnit, setRmCustomUnit] = useState("reps")
   const [newComment, setNewComment] = useState("")
   const [commentSemana, setCommentSemana] = useState("3")
   const [commentDia, setCommentDia] = useState("Lunes")
@@ -64,10 +75,44 @@ export default function AlumnoDetailPage({ params }: { params: Promise<{ id: str
   }
 
   const handleAddRm = () => {
-    if (!newRm.ejercicio || newRm.kg <= 0) return
-    setRms([...rms, newRm])
+    if (!newRm.ejercicio) return
+    
+    let finalValue = 0
+    let finalEjercicio = newRm.ejercicio
+    const isTime = newRm.ejercicio === "5km" || newRm.ejercicio === "10k" || (newRm.ejercicio === "Otro" && rmCustomUnit === "tiempo")
+    
+    if (newRm.ejercicio === "Otro") {
+      if (!rmCustomName.trim()) return
+      const suffix = rmCustomUnit === "tiempo" ? " (Tiempo)" : " (Reps)"
+      finalEjercicio = rmCustomName.trim() + suffix
+      
+      if (rmCustomUnit === "tiempo") {
+        if (!rmMinutes && !rmSeconds) return
+        finalValue = (parseInt(rmMinutes || "0") * 60) + parseInt(rmSeconds || "0")
+      } else {
+        if (!rmKg) return
+        finalValue = parseFloat(rmKg)
+      }
+    } else {
+      if (isTime) {
+        if (!rmMinutes && !rmSeconds) return
+        finalValue = (parseInt(rmMinutes || "0") * 60) + parseInt(rmSeconds || "0")
+      } else {
+        if (!rmKg) return
+        finalValue = parseFloat(rmKg)
+      }
+    }
+
+    if (finalValue <= 0) return
+
+    setRms([...rms, { ejercicio: finalEjercicio, kg: finalValue, fecha: newRm.fecha }])
     setIsRmDialogOpen(false)
-    setNewRm({ ejercicio: "", kg: 0, fecha: new Date().toISOString().split("T")[0] })
+    setNewRm({ ejercicio: "", fecha: new Date().toISOString().split("T")[0] })
+    setRmMinutes("")
+    setRmSeconds("")
+    setRmKg("")
+    setRmCustomName("")
+    setRmCustomUnit("reps")
   }
 
   const handleSendComment = () => {
@@ -212,13 +257,13 @@ export default function AlumnoDetailPage({ params }: { params: Promise<{ id: str
           <Card className="bg-card border-border">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Records Personales (RMs)</CardTitle>
-              <Dialog open={isRmDialogOpen} onOpenChange={setIsRmDialogOpen}>
+<Dialog open={isRmDialogOpen} onOpenChange={setIsRmDialogOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm" className="bg-primary text-primary-foreground">
                     <Plus className="w-4 h-4 mr-1" /> Registrar RM
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="bg-card border-border">
+                <DialogContent className="bg-card border-border" aria-describedby={undefined}>
                   <DialogHeader>
                     <DialogTitle>Registrar nuevo RM</DialogTitle>
                   </DialogHeader>
@@ -241,15 +286,73 @@ export default function AlumnoDetailPage({ params }: { params: Promise<{ id: str
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label>{isCapacidad(newRm.ejercicio) ? "Repeticiones" : "Peso (kg)"}</Label>
-                      <Input
-                        type="number"
-                        value={newRm.kg || ""}
-                        onChange={(e) => setNewRm({ ...newRm, kg: Number(e.target.value) })}
-                        className="bg-secondary/50"
-                      />
-                    </div>
+
+                    {newRm.ejercicio === "Otro" && (
+                      <div className="space-y-4 border-t border-border/30 pt-3">
+                        <div className="space-y-2">
+                          <Label>Nombre de la capacidad / WOD</Label>
+                          <Input 
+                            value={rmCustomName}
+                            onChange={(e) => setRmCustomName(e.target.value)}
+                            placeholder="Ej: Murf, Cindy, Fran"
+                            className="bg-secondary/50"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Tipo de Unidad / Medición</Label>
+                          <Select value={rmCustomUnit} onValueChange={rmCustomUnit => setRmCustomUnit(rmCustomUnit)}>
+                            <SelectTrigger className="bg-secondary/50">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="reps">Repeticiones / Carga / Cantidad</SelectItem>
+                              <SelectItem value="tiempo">Tiempo (minutos:segundos)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    )}
+
+                    {newRm.ejercicio === "5km" || newRm.ejercicio === "10k" || (newRm.ejercicio === "Otro" && rmCustomUnit === "tiempo") ? (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Minutos</Label>
+                          <Input 
+                            type="number" 
+                            min="0"
+                            placeholder="0" 
+                            value={rmMinutes}
+                            onChange={(e) => setRmMinutes(e.target.value)}
+                            className="bg-secondary/50"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Segundos</Label>
+                          <Input 
+                            type="number" 
+                            min="0"
+                            max="59"
+                            placeholder="0" 
+                            value={rmSeconds}
+                            onChange={(e) => setRmSeconds(e.target.value)}
+                            className="bg-secondary/50"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label>{isCapacidad(newRm.ejercicio) || newRm.ejercicio === "Otro" ? "Valor / Repeticiones" : "Peso (kg)"}</Label>
+                        <Input
+                          type="number"
+                          step="0.5"
+                          value={rmKg}
+                          onChange={(e) => setRmKg(e.target.value)}
+                          className="bg-secondary/50"
+                          placeholder="Ej: 85"
+                        />
+                      </div>
+                    )}
+
                     <div className="space-y-2">
                       <Label>Fecha</Label>
                       <Input
@@ -274,7 +377,12 @@ export default function AlumnoDetailPage({ params }: { params: Promise<{ id: str
               ) : (
                 <div className="space-y-6">
                   {Object.entries(CATEGORIAS_RM).map(([categoria, ejercicios]) => {
-                    const categoryRMs = rms.filter(rm => ejercicios.includes(rm.ejercicio))
+                    const categoryRMs = rms.filter(rm => {
+                      if (categoria === "Capacidades") {
+                        return ejercicios.includes(rm.ejercicio) || rm.ejercicio.endsWith(" (Tiempo)") || rm.ejercicio.endsWith(" (Reps)")
+                      }
+                      return ejercicios.includes(rm.ejercicio)
+                    })
                     if (categoryRMs.length === 0) return null
 
                     return (
@@ -284,19 +392,24 @@ export default function AlumnoDetailPage({ params }: { params: Promise<{ id: str
                         </h4>
                         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                           {categoryRMs.map((rm, idx) => {
-                            const historicalMax = Math.max(...rms.filter(r => r.ejercicio === rm.ejercicio).map(r => r.kg))
-                            const percentage = (rm.kg / historicalMax) * 100
+                            const isTime = rm.ejercicio === "5km" || rm.ejercicio === "10k" || rm.ejercicio.endsWith(" (Tiempo)")
+                            const cleanName = rm.ejercicio.replace(" (Tiempo)", "").replace(" (Reps)", "")
+                            const allForExercise = rms.filter(r => r.ejercicio === rm.ejercicio)
+                            const historicalMax = isTime
+                              ? Math.min(...allForExercise.map(r => r.kg))
+                              : Math.max(...allForExercise.map(r => r.kg))
+                            const percentage = isTime ? 100 : (rm.kg / historicalMax) * 100
                             return (
                               <div key={idx} className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg border border-border/50 hover:border-primary/30 transition-colors">
                                 <div>
-                                  <p className="font-semibold text-sm">{rm.ejercicio}</p>
+                                  <p className="font-semibold text-sm">{cleanName}</p>
                                   <p className="text-xs text-muted-foreground">{format(parseISO(rm.fecha), "d MMM yy", { locale: es })}</p>
                                 </div>
                                 <div className="text-right">
                                   <p className="font-bold text-primary text-lg leading-none">
-                                    {rm.kg} <span className="text-xs font-normal text-muted-foreground">{isCapacidad(rm.ejercicio) ? "reps" : "kg"}</span>
+                                    {isTime ? formatTime(rm.kg) : rm.kg} <span className="text-xs font-normal text-muted-foreground">{isTime ? "min" : (isCapacidad(rm.ejercicio) ? "reps" : "kg")}</span>
                                   </p>
-                                  {percentage < 100 && (
+                                  {!isTime && percentage < 100 && (
                                     <p className="text-[10px] text-muted-foreground mt-0.5">{percentage.toFixed(0)}% del max</p>
                                   )}
                                 </div>

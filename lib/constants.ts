@@ -25,7 +25,8 @@ export const CATEGORIAS_RM = {
     "Burpees",
     "Box Jump Over",
     "Rope Climb",
-    "Legless Rope Climb"
+    "Legless Rope Climb",
+    "Otro"
   ],
   Running: [
     "5km",
@@ -34,12 +35,13 @@ export const CATEGORIAS_RM = {
 }
 
 // Flat list for easy matching
-export const TODOS_LOS_EJERCICIOS = Object.values(CATEGORIAS_RM).flat()
+export const TODOS_LOS_EJERCICIOS = Object.values(CATEGORIAS_RM).flat().filter(e => e !== "Otro")
 
 // For the parser, we sort them by length descending so that "Clean & Jerk" matches before "Clean"
 export const EJERCICIOS_PARSER_SORTED = [...TODOS_LOS_EJERCICIOS].sort((a, b) => b.length - a.length)
 
 // Helper to determine if an exercise is tracked in reps
 export const isCapacidad = (ejercicio: string) => {
-  return CATEGORIAS_RM.Capacidades.includes(ejercicio)
+  if (!ejercicio) return false
+  return CATEGORIAS_RM.Capacidades.includes(ejercicio) || ejercicio.endsWith(" (Tiempo)") || ejercicio.endsWith(" (Reps)")
 }
