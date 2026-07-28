@@ -541,7 +541,7 @@ function WeekEditor({
                                   {renderInlineMarkdown(lineContent)} <span className="text-primary font-bold ml-2 bg-primary/10 px-2 py-0.5 rounded text-xs">[ PB de Alumno ]</span>
                                 </span>
                               )
-                            } else if (lowerLineContent.includes("10k")) {
+                            } else if (lowerLineContent.includes("1k")) {
                               processedLine = (
                                 <span>
                                   {renderInlineMarkdown(lineContent)} <span className="text-primary font-bold ml-2 bg-primary/10 px-2 py-0.5 rounded text-xs">[ PB de Alumno ]</span>

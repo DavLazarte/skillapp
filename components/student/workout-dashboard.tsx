@@ -296,16 +296,19 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                 {/* Workout Content */}
                 <div className="prose prose-invert prose-sm max-w-none">
                   {(() => {
+                    const cleanRMName = (name: string) => {
+                      return name.replace(/\[.*?\]\s*/, "").replace(" (Tiempo)", "").replace(" (Reps)", "")
+                    }
+
                     const getRM = (exercise: string) => {
                       const allForExercise = alumno.rms.filter((r: any) => 
                         r.ejercicio === exercise || 
-                        r.ejercicio === `${exercise} (Tiempo)` || 
-                        r.ejercicio === `${exercise} (Reps)`
+                        cleanRMName(r.ejercicio) === exercise
                       )
                       if (allForExercise.length === 0) return null
                       const isTime = exercise === "5km" || 
-                                     exercise === "10k" || 
-                                     allForExercise[0].ejercicio.endsWith(" (Tiempo)")
+                                     exercise === "1k" || 
+                                     allForExercise[0].ejercicio.includes(" (Tiempo)")
                       if (isTime) {
                         return Math.min(...allForExercise.map((r: any) => r.kg))
                       }
@@ -322,8 +325,7 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                       if (!exerciseName) return false
                       if (isCapacidad(exerciseName)) return true
                       return alumno.rms.some((r: any) => 
-                        r.ejercicio === `${exerciseName} (Tiempo)` || 
-                        r.ejercicio === `${exerciseName} (Reps)`
+                        cleanRMName(r.ejercicio) === exerciseName
                       )
                     }
 
@@ -361,8 +363,8 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                     // Extract custom exercises from student RMs
                     const customExercises = (alumno.rms || [])
                       .map((r: any) => r.ejercicio)
-                      .filter((name: string) => name.endsWith(" (Tiempo)") || name.endsWith(" (Reps)"))
-                      .map((name: string) => name.replace(" (Tiempo)", "").replace(" (Reps)", ""))
+                      .filter((name: string) => name.includes(" (Tiempo)") || name.includes(" (Reps)"))
+                      .map((name: string) => cleanRMName(name))
                       
                     // Merge and sort by length descending
                     const allSearchExercises = Array.from(new Set([
@@ -428,8 +430,8 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                             {renderInlineMarkdown(lineContent)} <span className="text-primary font-bold ml-2 bg-primary/10 px-2 py-0.5 rounded text-xs">[ PB: {pb ? formatTime(pb) + " min" : "Sin RM"} ]</span>
                           </span>
                         )
-                      } else if (lowerLineContent.includes("10k")) {
-                        const pb = getRM("10k")
+                      } else if (lowerLineContent.includes("1k")) {
+                        const pb = getRM("1k")
                         processedLine = (
                           <span>
                             {renderInlineMarkdown(lineContent)} <span className="text-primary font-bold ml-2 bg-primary/10 px-2 py-0.5 rounded text-xs">[ PB: {pb ? formatTime(pb) + " min" : "Sin RM"} ]</span>
@@ -440,15 +442,15 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                         if (rpMatch) {
                           const distanceMeters = parseInt(rpMatch[1])
                           const rpeValue = parseInt(rpMatch[2])
-                          const rm10k = getRM("10k")
+                          const rm1k = getRM("1k")
                           const rm5k = getRM("5km")
                           
                           let baseTimeSeconds = 0
                           let baseDistance = 0
                           
-                          if (rm10k) {
-                            baseTimeSeconds = rm10k
-                            baseDistance = 10000
+                          if (rm1k) {
+                            baseTimeSeconds = rm1k
+                            baseDistance = 1000
                           } else if (rm5k) {
                             baseTimeSeconds = rm5k
                             baseDistance = 5000
@@ -491,8 +493,10 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                           const maxRM = getRM(activeRMContext)
                           if (maxRM) {
                             const isTime = activeRMContext === "5km" || 
-                                           activeRMContext === "10k" || 
-                                           alumno.rms.some((r: any) => r.ejercicio === `${activeRMContext} (Tiempo)`)
+                                           activeRMContext === "1k" || 
+                                           alumno.rms.some((r: any) => 
+                                             cleanRMName(r.ejercicio) === activeRMContext && r.ejercicio.includes(" (Tiempo)")
+                                           )
                             
                             const calculatedWeight = isTime
                               ? Math.round((maxRM * percent) / 100)

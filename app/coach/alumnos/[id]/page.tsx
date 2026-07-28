@@ -60,6 +60,7 @@ export default function AlumnoDetailPage({ params }: { params: Promise<{ id: str
   const [rmKg, setRmKg] = useState("")
   const [rmCustomName, setRmCustomName] = useState("")
   const [rmCustomUnit, setRmCustomUnit] = useState("reps")
+  const [rmCustomNote, setRmCustomNote] = useState("")
   const [newComment, setNewComment] = useState("")
   const [commentSemana, setCommentSemana] = useState("3")
   const [commentDia, setCommentDia] = useState("Lunes")
@@ -79,12 +80,13 @@ export default function AlumnoDetailPage({ params }: { params: Promise<{ id: str
     
     let finalValue = 0
     let finalEjercicio = newRm.ejercicio
-    const isTime = newRm.ejercicio === "5km" || newRm.ejercicio === "10k" || (newRm.ejercicio === "Otro" && rmCustomUnit === "tiempo")
+    const isTime = newRm.ejercicio === "5km" || newRm.ejercicio === "1k" || (newRm.ejercicio === "Otro" && rmCustomUnit === "tiempo")
     
     if (newRm.ejercicio === "Otro") {
       if (!rmCustomName.trim()) return
       const suffix = rmCustomUnit === "tiempo" ? " (Tiempo)" : " (Reps)"
-      finalEjercicio = rmCustomName.trim() + suffix
+      const noteStr = rmCustomNote.trim() ? ` [${rmCustomNote.trim()}]` : ""
+      finalEjercicio = rmCustomName.trim() + noteStr + suffix
       
       if (rmCustomUnit === "tiempo") {
         if (!rmMinutes && !rmSeconds) return
@@ -113,6 +115,7 @@ export default function AlumnoDetailPage({ params }: { params: Promise<{ id: str
     setRmKg("")
     setRmCustomName("")
     setRmCustomUnit("reps")
+    setRmCustomNote("")
   }
 
   const handleSendComment = () => {
@@ -310,10 +313,19 @@ export default function AlumnoDetailPage({ params }: { params: Promise<{ id: str
                             </SelectContent>
                           </Select>
                         </div>
+                        <div className="space-y-2">
+                          <Label>Nota / Carga utilizada (Opcional)</Label>
+                          <Input 
+                            value={rmCustomNote}
+                            onChange={(e) => setRmCustomNote(e.target.value)}
+                            placeholder="Ej: con 40kg, RX, Scaled"
+                            className="bg-secondary/50"
+                          />
+                        </div>
                       </div>
                     )}
 
-                    {newRm.ejercicio === "5km" || newRm.ejercicio === "10k" || (newRm.ejercicio === "Otro" && rmCustomUnit === "tiempo") ? (
+                    {newRm.ejercicio === "5km" || newRm.ejercicio === "1k" || (newRm.ejercicio === "Otro" && rmCustomUnit === "tiempo") ? (
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Minutos</Label>
@@ -392,17 +404,28 @@ export default function AlumnoDetailPage({ params }: { params: Promise<{ id: str
                         </h4>
                         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                           {categoryRMs.map((rm, idx) => {
-                            const isTime = rm.ejercicio === "5km" || rm.ejercicio === "10k" || rm.ejercicio.endsWith(" (Tiempo)")
-                            const cleanName = rm.ejercicio.replace(" (Tiempo)", "").replace(" (Reps)", "")
+                            const isTime = rm.ejercicio === "5km" || rm.ejercicio === "1k" || rm.ejercicio.includes(" (Tiempo)")
                             const allForExercise = rms.filter(r => r.ejercicio === rm.ejercicio)
                             const historicalMax = isTime
                               ? Math.min(...allForExercise.map(r => r.kg))
                               : Math.max(...allForExercise.map(r => r.kg))
                             const percentage = isTime ? 100 : (rm.kg / historicalMax) * 100
+                            
+                            const noteMatch = rm.ejercicio.match(/\[(.*?)\]/)
+                            const note = noteMatch ? noteMatch[1] : ""
+                            const cleanName = rm.ejercicio.replace(/\[.*?\]\s*/, "").replace(" (Tiempo)", "").replace(" (Reps)", "")
+                            
                             return (
                               <div key={idx} className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg border border-border/50 hover:border-primary/30 transition-colors">
                                 <div>
-                                  <p className="font-semibold text-sm">{cleanName}</p>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="font-semibold text-sm">{cleanName}</p>
+                                    {note && (
+                                      <span className="text-[8px] bg-primary/20 text-primary font-bold px-1 rounded uppercase tracking-wide">
+                                        {note}
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-xs text-muted-foreground">{format(parseISO(rm.fecha), "d MMM yy", { locale: es })}</p>
                                 </div>
                                 <div className="text-right">

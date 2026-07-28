@@ -47,8 +47,9 @@ export function StudentRMsView({ alumno, rms }: any) {
   const [seconds, setSeconds] = useState("")
   const [customName, setCustomName] = useState("")
   const [customUnit, setCustomUnit] = useState("reps")
+  const [customNote, setCustomNote] = useState("")
 
-  const isTimeBased = ejercicio === "5km" || ejercicio === "10k" || (ejercicio === "Otro" && customUnit === "tiempo")
+  const isTimeBased = ejercicio === "5km" || ejercicio === "1k" || (ejercicio === "Otro" && customUnit === "tiempo")
 
   // Group RMs by exercise and get the latest for each
   const groupedRMs = rms.reduce((acc: any, rm: any) => {
@@ -68,16 +69,25 @@ export function StudentRMsView({ alumno, rms }: any) {
     setSeconds("")
     setCustomName("")
     setCustomUnit("reps")
+    setCustomNote("")
   }
 
   const handleOpenEdit = (rm: any) => {
     setEditingId(rm.id)
-    const isCustom = rm.ejercicio.endsWith(" (Tiempo)") || rm.ejercicio.endsWith(" (Reps)")
+    
+    // Check if it has a note in brackets
+    const noteMatch = rm.ejercicio.match(/\[(.*?)\]/)
+    const note = noteMatch ? noteMatch[1] : ""
+    setCustomNote(note)
+    
+    // Clean name from note
+    const cleanedName = rm.ejercicio.replace(/\[.*?\]\s*/, "")
+    const isCustom = cleanedName.endsWith(" (Tiempo)") || cleanedName.endsWith(" (Reps)")
     
     if (isCustom) {
       setEjercicio("Otro")
-      const isTime = rm.ejercicio.endsWith(" (Tiempo)")
-      setCustomName(rm.ejercicio.replace(" (Tiempo)", "").replace(" (Reps)", ""))
+      const isTime = cleanedName.endsWith(" (Tiempo)")
+      setCustomName(cleanedName.replace(" (Tiempo)", "").replace(" (Reps)", ""))
       setCustomUnit(isTime ? "tiempo" : "reps")
       
       if (isTime) {
@@ -93,7 +103,7 @@ export function StudentRMsView({ alumno, rms }: any) {
       setEjercicio(rm.ejercicio)
       setCustomName("")
       setCustomUnit("reps")
-      if (rm.ejercicio === "5km" || rm.ejercicio === "10k") {
+      if (rm.ejercicio === "5km" || rm.ejercicio === "1k") {
         setMinutes(Math.floor(rm.kg / 60).toString())
         setSeconds(Math.floor(rm.kg % 60).toString())
         setKg("")
@@ -123,7 +133,8 @@ export function StudentRMsView({ alumno, rms }: any) {
     if (ejercicio === "Otro") {
       if (!customName.trim()) return
       const suffix = customUnit === "tiempo" ? " (Tiempo)" : " (Reps)"
-      finalEjercicio = customName.trim() + suffix
+      const noteStr = customNote.trim() ? ` [${customNote.trim()}]` : ""
+      finalEjercicio = customName.trim() + noteStr + suffix
       
       if (customUnit === "tiempo") {
         if (!minutes && !seconds) return
@@ -227,6 +238,15 @@ export function StudentRMsView({ alumno, rms }: any) {
                         <SelectItem value="tiempo">Tiempo (minutos:segundos)</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Nota / Carga utilizada (Opcional)</Label>
+                    <Input 
+                      value={customNote}
+                      onChange={(e) => setCustomNote(e.target.value)}
+                      placeholder="Ej: con 40kg, RX, Scaled"
+                      className="bg-secondary/30"
+                    />
                   </div>
                 </div>
               )}
@@ -353,21 +373,30 @@ export function StudentRMsView({ alumno, rms }: any) {
                 </h4>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {categoryRMs.map((rm: any, idx) => {
-                    const isTime = rm.ejercicio === "5km" || rm.ejercicio === "10k" || rm.ejercicio.endsWith(" (Tiempo)")
+                    const isTime = rm.ejercicio === "5km" || rm.ejercicio === "1k" || rm.ejercicio.includes(" (Tiempo)")
                     const allForExercise = rms.filter((r: any) => r.ejercicio === rm.ejercicio)
                     const historicalBest = isTime 
                       ? Math.min(...allForExercise.map((r: any) => r.kg))
                       : Math.max(...allForExercise.map((r: any) => r.kg))
+                    
+                    const noteMatch = rm.ejercicio.match(/\[(.*?)\]/)
+                    const note = noteMatch ? noteMatch[1] : ""
+                    const cleanName = rm.ejercicio.replace(/\[.*?\]\s*/, "").replace(" (Tiempo)", "").replace(" (Reps)", "")
                     
                     return (
                       <div key={idx} className="group relative flex items-center justify-between p-4 bg-card/50 rounded-xl border border-border/50 hover:border-primary/30 transition-all overflow-hidden">
                         <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary to-primary/20 opacity-50 group-hover:opacity-100 transition-opacity" />
                         
                         {/* Info */}
-                        <div className="pl-3">
-                          <p className="font-bold text-muted-foreground uppercase text-sm tracking-tight mb-1">
-                            {rm.ejercicio.replace(" (Tiempo)", "").replace(" (Reps)", "")}
-                          </p>
+                        <div className="pl-3 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-bold text-muted-foreground uppercase text-sm tracking-tight">{cleanName}</p>
+                            {note && (
+                              <span className="text-[9px] bg-primary/20 text-primary font-bold px-1.5 py-0.5 rounded tracking-wide uppercase">
+                                {note}
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-baseline gap-1.5">
                             <span className="text-2xl font-black text-primary">
                               {isTime ? formatTime(rm.kg) : rm.kg}
@@ -376,7 +405,7 @@ export function StudentRMsView({ alumno, rms }: any) {
                               {isTime ? "min" : (isCapacidad(rm.ejercicio) ? "reps" : "kg")}
                             </span>
                           </div>
-                          <p className="text-[10px] text-muted-foreground mt-1">
+                          <p className="text-[10px] text-muted-foreground">
                             Mejor: <span className="font-semibold text-success">{isTime ? formatTime(historicalBest) : historicalBest}</span>
                           </p>
                         </div>

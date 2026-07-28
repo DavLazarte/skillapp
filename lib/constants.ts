@@ -30,7 +30,7 @@ export const CATEGORIAS_RM = {
   ],
   Running: [
     "5km",
-    "10k"
+    "1k"
   ]
 }
 
