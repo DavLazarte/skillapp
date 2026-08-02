@@ -18,7 +18,7 @@ import { ChangePasswordForm } from "@/components/student/change-password-form"
 export default async function StudentProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   
-  const alumno = await prisma.user.findUnique({
+  const alumno = await prisma.user.findFirst({
     where: { id, role: "alumno" },
   })
 

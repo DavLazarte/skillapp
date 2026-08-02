@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic"
 export default async function StudentPlanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   
-  const alumno = await prisma.user.findUnique({
+  const alumno = await prisma.user.findFirst({
     where: { id, role: "alumno" },
     include: {
       asistencias: true,

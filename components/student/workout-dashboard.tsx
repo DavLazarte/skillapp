@@ -325,7 +325,7 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                       if (!exerciseName) return false
                       if (isCapacidad(exerciseName)) return true
                       return alumno.rms.some((r: any) => 
-                        cleanRMName(r.ejercicio) === exerciseName
+                        cleanRMName(r.ejercicio) === exerciseName && r.ejercicio.includes(" (Reps)")
                       )
                     }
 
@@ -376,9 +376,14 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                     let activeRMContext: string | null = null
                     
                     return selectedDayData.contenido.split("\n").map((line: string, idx: number) => {
-                      if (!line.trim()) {
+                      const trimmedLine = line.trim()
+                      if (!trimmedLine) {
                         return <div key={idx} className="h-4" /> // Respetar saltos de línea (enters)
                       }
+
+                      const isDivider = /^---\s*$/.test(trimmedLine)
+                      const headerMatch = trimmedLine.match(/^(MOVILIDAD|ACTIVACIÓN|FUERZA|WARM\s+UP|WEIGHTLIFTING|COMPLEX|ACCESORIOS|BARBELL\s+CONDITIONING|WOD|METCON|AMRAP|EMOM|TABATA|FORTIME|STRENGTH|CARDIO)(?:\s*:|\s+-\s*|\s*$)/i)
+                      const isSectionHeader = !!headerMatch && !trimmedLine.startsWith("-") && !trimmedLine.startsWith("#")
 
                       const lowerLine = line.toLowerCase()
                       
@@ -396,6 +401,19 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                             break
                           }
                         }
+                      }
+
+                      if (isDivider) {
+                        return <hr key={idx} className="my-6 border-t border-border/40" />
+                      }
+
+                      if (isSectionHeader) {
+                        return (
+                          <h3 key={idx} className="font-black italic uppercase text-lg text-primary mt-8 mb-4 flex items-center gap-3 first:mt-2">
+                            <span className="w-1 h-5 bg-primary rounded-full shadow-[0_0_8px_rgba(249,115,22,0.4)]" />
+                            {renderInlineMarkdown(trimmedLine)}
+                          </h3>
+                        )
                       }
 
                       // 2. Extract Block Formatting
@@ -487,8 +505,55 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                           }
                         }
                       } else {
+                        // Try range first: "60 a 75%", "60 al 75%"
+                        const rangeMatch = lineContent.match(/(\d+)\s*(?:a|al)\s+(\d+)%/)
                         const percentMatch = lineContent.match(/(\d+)%/)
-                        if (percentMatch && activeRMContext) {
+                        
+                        if (rangeMatch && activeRMContext && !isExerciseCapacidad(activeRMContext)) {
+                          const percent1 = parseInt(rangeMatch[1])
+                          const percent2 = parseInt(rangeMatch[2])
+                          const maxRM = getRM(activeRMContext)
+                          if (maxRM) {
+                            const isTime = activeRMContext === "5km" || 
+                                           activeRMContext === "1k" || 
+                                           alumno.rms.some((r: any) => 
+                                             cleanRMName(r.ejercicio) === activeRMContext && r.ejercicio.includes(" (Tiempo)")
+                                           )
+                            
+                            const calc = (p: number) => isTime
+                              ? Math.round((maxRM * p) / 100)
+                              : Math.round(((maxRM * p) / 100) * 10) / 10
+
+                            const formatValue = (val: number) => {
+                              if (isTime) return `${formatTime(val)} min`
+                              return `${val}`
+                            }
+
+                            const parts = lineContent.split(rangeMatch[0])
+                            processedLine = (
+                              <span>
+                                {renderInlineMarkdown(parts[0])}
+                                {rangeMatch[0]}
+                                <span className="text-primary font-bold mx-2 bg-primary/10 px-2 py-0.5 rounded text-xs">
+                                  [ {formatValue(calc(percent1))} a {formatValue(calc(percent2))} {isTime ? "" : "kg"} ]
+                                </span>
+                                {renderInlineMarkdown(parts[1] || "")}
+                              </span>
+                            )
+                          } else {
+                            const parts = lineContent.split(rangeMatch[0])
+                            processedLine = (
+                              <span>
+                                {renderInlineMarkdown(parts[0])}
+                                {rangeMatch[0]}
+                                <span className="text-muted-foreground/60 italic mx-2 text-xs">
+                                  [ Sin RM de {activeRMContext} ]
+                                </span>
+                                {renderInlineMarkdown(parts[1] || "")}
+                              </span>
+                            )
+                          }
+                        } else if (percentMatch && activeRMContext && !isExerciseCapacidad(activeRMContext)) {
                           const percent = parseInt(percentMatch[1])
                           const maxRM = getRM(activeRMContext)
                           if (maxRM) {
@@ -504,7 +569,7 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                             
                             const formatValue = (val: number) => {
                               if (isTime) return `${formatTime(val)} min`
-                              return `${val} ${isExerciseCapacidad(activeRMContext) ? "reps" : "kg"}`
+                              return `${val} kg`
                             }
 
                             const parts = lineContent.split(percentMatch[0])

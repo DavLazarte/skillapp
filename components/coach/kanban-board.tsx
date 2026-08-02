@@ -507,9 +507,27 @@ function WeekEditor({
                           if (!dia.contenido) return <p className="text-muted-foreground italic text-sm text-center py-10">El día está vacío.</p>
 
                           return dia.contenido.split("\n").map((line, idx) => {
-                            if (!line.trim()) {
-                              return <div key={idx} className="h-4" />
-                            }
+                             const trimmedLine = line.trim()
+                             if (!trimmedLine) {
+                               return <div key={idx} className="h-4" />
+                             }
+
+                             const isDivider = /^---\s*$/.test(trimmedLine)
+                             const headerMatch = trimmedLine.match(/^(MOVILIDAD|ACTIVACIÓN|FUERZA|WARM\s+UP|WEIGHTLIFTING|COMPLEX|ACCESORIOS|BARBELL\s+CONDITIONING|WOD|METCON|AMRAP|EMOM|TABATA|FORTIME|STRENGTH|CARDIO)(?:\s*:|\s+-\s*|\s*$)/i)
+                             const isSectionHeader = !!headerMatch && !trimmedLine.startsWith("-") && !trimmedLine.startsWith("#")
+
+                             if (isDivider) {
+                               return <hr key={idx} className="my-6 border-t border-border/40" />
+                             }
+
+                             if (isSectionHeader) {
+                               return (
+                                 <h3 key={idx} className="font-black italic uppercase text-lg text-primary mt-8 mb-4 flex items-center gap-3 first:mt-2">
+                                   <span className="w-1 h-5 bg-primary rounded-full shadow-[0_0_8px_rgba(249,115,22,0.4)]" />
+                                   {renderInlineMarkdown(trimmedLine)}
+                                 </h3>
+                               )
+                             }
 
                             // Extract Block Formatting
                             let lineContent = line
