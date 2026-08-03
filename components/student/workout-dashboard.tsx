@@ -350,6 +350,23 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                       return parts.map((part, i) => {
                         const linkMatch = part.match(/\[(.*?)\]\((.*?)\)/)
                         if (linkMatch) {
+                          const ytMatch = linkMatch[2].match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([^&?\n]+)/)
+                          const ytId = ytMatch ? ytMatch[1] : null
+                          
+                          if (ytId) {
+                            return (
+                              <details key={i} className="inline-block group/video my-1 w-full max-w-sm">
+                                <summary className="text-primary hover:underline font-medium inline-flex items-center gap-1 bg-primary/10 px-1.5 py-0.5 rounded-md transition-colors hover:bg-primary/20 cursor-pointer list-none select-none">
+                                  {renderBoldItalic(linkMatch[1])}
+                                  <svg className="w-4 h-4 ml-0.5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                </summary>
+                                <div className="mt-2 mb-3 rounded-xl overflow-hidden border border-border/50 bg-black aspect-video relative shadow-lg">
+                                  <iframe src={`https://www.youtube.com/embed/${ytId}`} title={linkMatch[1]} allowFullScreen className="w-full h-full border-0"></iframe>
+                                </div>
+                              </details>
+                            )
+                          }
+                          
                           return (
                             <a key={i} href={linkMatch[2]} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium inline-flex items-center gap-1 bg-primary/10 px-1.5 py-0.5 rounded-md transition-colors hover:bg-primary/20">
                               {renderBoldItalic(linkMatch[1])}
@@ -359,6 +376,8 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                         return <span key={i}>{renderBoldItalic(part)}</span>
                       })
                     }
+
+                    const normalizeForSearch = (str: string) => str.toLowerCase().replace(/s\b/g, "").replace(/[^a-z0-9 ]/g, "").trim()
 
                     // Extract custom exercises from student RMs
                     const customExercises = (alumno.rms || [])
@@ -386,17 +405,22 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                       const isSectionHeader = !!headerMatch && !trimmedLine.startsWith("-") && !trimmedLine.startsWith("#")
 
                       const lowerLine = line.toLowerCase()
+                      const searchLine = normalizeForSearch(line)
                       
                       // 1. Detect Context Shift
-                      if (lowerLine.includes("clean & jerk") || lowerLine.includes("clean and jerk") || lowerLine.includes("clean y jerk") || lowerLine.includes("c&j")) {
+                      if (searchLine.includes("clean  jerk") || searchLine.includes("clean and jerk") || searchLine.includes("clean y jerk") || searchLine.includes("cj")) {
                         activeRMContext = "Clean & Jerk"
-                      } else if (lowerLine.includes("strict press") || lowerLine.includes("press estricto")) {
+                      } else if (searchLine.includes("jerk") && !searchLine.includes("clean")) {
+                        activeRMContext = "Jerk"
+                      } else if (searchLine.includes("clean") && !searchLine.includes("jerk")) {
+                        activeRMContext = "Clean"
+                      } else if (searchLine.includes("strict press") || searchLine.includes("press estricto")) {
                         activeRMContext = "Press Estricto"
-                      } else if (lowerLine.includes("ohs") || lowerLine.includes("over head squat") || lowerLine.includes("overhead squat")) {
+                      } else if (searchLine.includes("ohs") || searchLine.includes("over head squat") || searchLine.includes("overhead squat") || searchLine.includes("snatch")) {
                         activeRMContext = "Snatch"
                       } else {
                         for (const ej of allSearchExercises) {
-                          if (lowerLine.includes(ej.toLowerCase())) {
+                          if (searchLine.includes(normalizeForSearch(ej))) {
                             activeRMContext = ej
                             break
                           }
@@ -441,7 +465,180 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                       let processedLine: React.ReactNode = lineContent
                       const lowerLineContent = lineContent.toLowerCase()
 
-                      if (lowerLineContent.includes("5km")) {
+                      const rangeRegexMatch = lineContent.match(/(\d+)\s*(?:a|al|-)\s+(\d+)%/i)
+                      // Prevents "2x5 - 50%" from being parsed as a range "5 - 50"
+                      const isInvalidRange = lineContent.match(/\b\d+x\s*\d+\s*-\s*\d+%/i)
+                      const rangeMatch = isInvalidRange ? null : rangeRegexMatch
+                      
+                      const percentMatch = lineContent.match(/([+-]?\d+)%/)
+                      const rpMatch = lineContent.match(/(\d+)\s*m\s*(?:rpe|rp)\s*(\d+)/i)
+
+                      if (rangeMatch && activeRMContext) {
+                        const percent1 = parseInt(rangeMatch[1])
+                        const percent2 = parseInt(rangeMatch[2])
+                        const maxRM = getRM(activeRMContext)
+                        if (maxRM) {
+                          const isTime = activeRMContext === "5km" || 
+                                         activeRMContext === "1k" || 
+                                         alumno.rms.some((r: any) => 
+                                           cleanRMName(r.ejercicio) === activeRMContext && r.ejercicio.includes(" (Tiempo)")
+                                         )
+                          const isCap = isExerciseCapacidad(activeRMContext)
+                          
+                          const calc = (p: number) => isTime || isCap
+                            ? Math.round((maxRM * p) / 100)
+                            : Math.round(((maxRM * p) / 100) * 10) / 10
+
+                          const formatValue = (val: number) => {
+                            if (isTime) return `${formatTime(val)} min`
+                            return `${val}`
+                          }
+
+                          const val1 = calc(percent1)
+                          const val2 = calc(percent2)
+
+                          const parts = lineContent.split(rangeMatch[0])
+                          const beforeText = parts[0].replace(/\s*-\s*$/, ' ')
+                          processedLine = (
+                            <span>
+                              {renderInlineMarkdown(beforeText)}
+                              <span className="text-primary font-bold mx-1 bg-primary/10 px-2 py-0.5 rounded text-xs">
+                                {val1 === val2 
+                                  ? `con ${formatValue(val1)} ${isTime ? "" : (isCap ? "reps" : "kg")}`
+                                  : `con ${formatValue(val1)} a ${formatValue(val2)} ${isTime ? "" : (isCap ? "reps" : "kg")}`}
+                              </span>
+                              {renderInlineMarkdown(parts[1] || "")}
+                            </span>
+                          )
+                        } else {
+                          const parts = lineContent.split(rangeMatch[0])
+                          processedLine = (
+                            <span>
+                              {renderInlineMarkdown(parts[0])}
+                              {rangeMatch[0]}
+                              <span className="text-muted-foreground/60 italic mx-2 text-xs">
+                                [ Sin RM de {activeRMContext} ]
+                              </span>
+                              {renderInlineMarkdown(parts[1] || "")}
+                            </span>
+                          )
+                        }
+                      } else if (percentMatch && activeRMContext) {
+                        const isModifier = percentMatch[1].startsWith("+") || percentMatch[1].startsWith("-")
+                        const percent = parseInt(percentMatch[1])
+                        const maxRM = getRM(activeRMContext)
+                        if (maxRM) {
+                          const isTime = activeRMContext === "5km" || 
+                                         activeRMContext === "1k" || 
+                                         alumno.rms.some((r: any) => 
+                                           cleanRMName(r.ejercicio) === activeRMContext && r.ejercicio.includes(" (Tiempo)")
+                                         )
+                          const isCap = isExerciseCapacidad(activeRMContext)
+                          
+                          let calculatedWeight = 0
+                          
+                          if (isTime) {
+                            // Running/Cardio pace logic
+                            let baseTime = maxRM
+                            
+                            // Extract distance if specified e.g. "4x500 m" or "1000m"
+                            const distMatch = lineContent.match(/(?:x|\b)(\d+)\s*m\b/i) || lineContent.match(/\b(\d+)\s*m\b/i)
+                            if (distMatch) {
+                              const distanceMeters = parseInt(distMatch[1])
+                              const baseDist = activeRMContext === "5km" ? 5000 : 1000
+                              baseTime = maxRM * (distanceMeters / baseDist)
+                            }
+                            
+                            // Modifiers: +2% means 2% faster (subtract from time), -2% means slower
+                            if (isModifier) {
+                              calculatedWeight = Math.round(baseTime * (1 - (percent / 100)))
+                            } else {
+                              calculatedWeight = Math.round((baseTime * percent) / 100)
+                            }
+                          } else {
+                            // Strength / Capacity logic
+                            calculatedWeight = isCap
+                              ? Math.round((maxRM * percent) / 100)
+                              : Math.round(((maxRM * percent) / 100) * 10) / 10
+                          }
+                          
+                          const formatValue = (val: number) => {
+                            if (isTime) return `${formatTime(val)} min`
+                            if (isCap) return `${val} reps`
+                            return `${val} kg`
+                          }
+
+                          const parts = lineContent.split(percentMatch[0])
+                          const beforeText = parts[0].replace(/\s*-\s*$/, ' ')
+                          processedLine = (
+                            <span>
+                              {renderInlineMarkdown(beforeText)}
+                              <span className="text-primary font-bold mx-1 bg-primary/10 px-2 py-0.5 rounded text-xs">
+                                {isTime ? `[ Obj: ${formatValue(calculatedWeight)} ]` : `con ${formatValue(calculatedWeight)}`}
+                              </span>
+                              {renderInlineMarkdown(parts[1] || "")}
+                            </span>
+                          )
+                        } else {
+                          const parts = lineContent.split(percentMatch[0])
+                          processedLine = (
+                            <span>
+                              {renderInlineMarkdown(parts[0])}
+                              {percentMatch[0]}
+                              <span className="text-muted-foreground/60 italic mx-2 text-xs">
+                                [ Sin RM de {activeRMContext} ]
+                              </span>
+                              {renderInlineMarkdown(parts[1] || "")}
+                            </span>
+                          )
+                        }
+                      } else if (rpMatch) {
+                        const distanceMeters = parseInt(rpMatch[1])
+                        const rpeValue = parseInt(rpMatch[2])
+                        const rm1k = getRM("1k")
+                        const rm5k = getRM("5km")
+                        
+                        let baseTimeSeconds = 0
+                        let baseDistance = 0
+                        
+                        if (rm1k) {
+                          baseTimeSeconds = rm1k
+                          baseDistance = 1000
+                        } else if (rm5k) {
+                          baseTimeSeconds = rm5k
+                          baseDistance = 5000
+                        }
+                        
+                        if (baseTimeSeconds > 0 && rpeValue > 0 && rpeValue <= 10) {
+                          const basePacePerMeter = baseTimeSeconds / baseDistance
+                          const baseTimeForTarget = distanceMeters * basePacePerMeter
+                          const targetTime = baseTimeForTarget * (rpeValue / 10)
+                          
+                          const parts = lineContent.split(rpMatch[0])
+                          processedLine = (
+                            <span>
+                              {renderInlineMarkdown(parts[0])}
+                              {rpMatch[0]}
+                              <span className="text-primary font-bold mx-2 bg-primary/10 px-2 py-0.5 rounded text-xs shadow-sm">
+                                [ Obj: {formatTime(targetTime)} min ]
+                              </span>
+                              {renderInlineMarkdown(parts[1] || "")}
+                            </span>
+                          )
+                        } else {
+                          const parts = lineContent.split(rpMatch[0])
+                          processedLine = (
+                            <span>
+                              {renderInlineMarkdown(parts[0])}
+                              {rpMatch[0]}
+                              <span className="text-muted-foreground/60 italic mx-2 text-xs">
+                                [ Sin RM para Predictor ]
+                              </span>
+                              {renderInlineMarkdown(parts[1] || "")}
+                            </span>
+                          )
+                        }
+                      } else if (lowerLineContent.includes("5km")) {
                         const pb = getRM("5km")
                         processedLine = (
                           <span>
@@ -455,150 +652,8 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                             {renderInlineMarkdown(lineContent)} <span className="text-primary font-bold ml-2 bg-primary/10 px-2 py-0.5 rounded text-xs">[ PB: {pb ? formatTime(pb) + " min" : "Sin RM"} ]</span>
                           </span>
                         )
-                      } else if (lowerLineContent.match(/(\d+)\s*m\s*(?:rpe|rp)\s*(\d+)/i)) {
-                        const rpMatch = lineContent.match(/(\d+)\s*m\s*(?:rpe|rp)\s*(\d+)/i)
-                        if (rpMatch) {
-                          const distanceMeters = parseInt(rpMatch[1])
-                          const rpeValue = parseInt(rpMatch[2])
-                          const rm1k = getRM("1k")
-                          const rm5k = getRM("5km")
-                          
-                          let baseTimeSeconds = 0
-                          let baseDistance = 0
-                          
-                          if (rm1k) {
-                            baseTimeSeconds = rm1k
-                            baseDistance = 1000
-                          } else if (rm5k) {
-                            baseTimeSeconds = rm5k
-                            baseDistance = 5000
-                          }
-                          
-                          if (baseTimeSeconds > 0 && rpeValue > 0 && rpeValue <= 10) {
-                            const basePacePerMeter = baseTimeSeconds / baseDistance
-                            const baseTimeForTarget = distanceMeters * basePacePerMeter
-                            const targetTime = baseTimeForTarget * (rpeValue / 10)
-                            
-                            const parts = lineContent.split(rpMatch[0])
-                            processedLine = (
-                              <span>
-                                {renderInlineMarkdown(parts[0])}
-                                {rpMatch[0]}
-                                <span className="text-primary font-bold mx-2 bg-primary/10 px-2 py-0.5 rounded text-xs shadow-sm">
-                                  [ Obj: {formatTime(targetTime)} min ]
-                                </span>
-                                {renderInlineMarkdown(parts[1] || "")}
-                              </span>
-                            )
-                          } else {
-                            const parts = lineContent.split(rpMatch[0])
-                            processedLine = (
-                              <span>
-                                {renderInlineMarkdown(parts[0])}
-                                {rpMatch[0]}
-                                <span className="text-muted-foreground/60 italic mx-2 text-xs">
-                                  [ Sin RM para Predictor ]
-                                </span>
-                                {renderInlineMarkdown(parts[1] || "")}
-                              </span>
-                            )
-                          }
-                        }
                       } else {
-                        // Try range first: "60 a 75%", "60 al 75%"
-                        const rangeMatch = lineContent.match(/(\d+)\s*(?:a|al)\s+(\d+)%/)
-                        const percentMatch = lineContent.match(/(\d+)%/)
-                        
-                        if (rangeMatch && activeRMContext && !isExerciseCapacidad(activeRMContext)) {
-                          const percent1 = parseInt(rangeMatch[1])
-                          const percent2 = parseInt(rangeMatch[2])
-                          const maxRM = getRM(activeRMContext)
-                          if (maxRM) {
-                            const isTime = activeRMContext === "5km" || 
-                                           activeRMContext === "1k" || 
-                                           alumno.rms.some((r: any) => 
-                                             cleanRMName(r.ejercicio) === activeRMContext && r.ejercicio.includes(" (Tiempo)")
-                                           )
-                            
-                            const calc = (p: number) => isTime
-                              ? Math.round((maxRM * p) / 100)
-                              : Math.round(((maxRM * p) / 100) * 10) / 10
-
-                            const formatValue = (val: number) => {
-                              if (isTime) return `${formatTime(val)} min`
-                              return `${val}`
-                            }
-
-                            const parts = lineContent.split(rangeMatch[0])
-                            processedLine = (
-                              <span>
-                                {renderInlineMarkdown(parts[0])}
-                                {rangeMatch[0]}
-                                <span className="text-primary font-bold mx-2 bg-primary/10 px-2 py-0.5 rounded text-xs">
-                                  [ {formatValue(calc(percent1))} a {formatValue(calc(percent2))} {isTime ? "" : "kg"} ]
-                                </span>
-                                {renderInlineMarkdown(parts[1] || "")}
-                              </span>
-                            )
-                          } else {
-                            const parts = lineContent.split(rangeMatch[0])
-                            processedLine = (
-                              <span>
-                                {renderInlineMarkdown(parts[0])}
-                                {rangeMatch[0]}
-                                <span className="text-muted-foreground/60 italic mx-2 text-xs">
-                                  [ Sin RM de {activeRMContext} ]
-                                </span>
-                                {renderInlineMarkdown(parts[1] || "")}
-                              </span>
-                            )
-                          }
-                        } else if (percentMatch && activeRMContext && !isExerciseCapacidad(activeRMContext)) {
-                          const percent = parseInt(percentMatch[1])
-                          const maxRM = getRM(activeRMContext)
-                          if (maxRM) {
-                            const isTime = activeRMContext === "5km" || 
-                                           activeRMContext === "1k" || 
-                                           alumno.rms.some((r: any) => 
-                                             cleanRMName(r.ejercicio) === activeRMContext && r.ejercicio.includes(" (Tiempo)")
-                                           )
-                            
-                            const calculatedWeight = isTime
-                              ? Math.round((maxRM * percent) / 100)
-                              : Math.round(((maxRM * percent) / 100) * 10) / 10
-                            
-                            const formatValue = (val: number) => {
-                              if (isTime) return `${formatTime(val)} min`
-                              return `${val} kg`
-                            }
-
-                            const parts = lineContent.split(percentMatch[0])
-                            processedLine = (
-                              <span>
-                                {renderInlineMarkdown(parts[0])}
-                                {percentMatch[0]}
-                                <span className="text-primary font-bold mx-2 bg-primary/10 px-2 py-0.5 rounded text-xs">
-                                  [ {formatValue(calculatedWeight)} ]
-                                </span>
-                                {renderInlineMarkdown(parts[1] || "")}
-                              </span>
-                            )
-                          } else {
-                            const parts = lineContent.split(percentMatch[0])
-                            processedLine = (
-                              <span>
-                                {renderInlineMarkdown(parts[0])}
-                                {percentMatch[0]}
-                                <span className="text-muted-foreground/60 italic mx-2 text-xs">
-                                  [ Sin RM de {activeRMContext} ]
-                                </span>
-                                {renderInlineMarkdown(parts[1] || "")}
-                              </span>
-                            )
-                          }
-                        } else {
-                          processedLine = renderInlineMarkdown(lineContent)
-                        }
+                        processedLine = renderInlineMarkdown(lineContent)
                       }
 
                       // 4. Render Block Formatting
@@ -622,7 +677,7 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                         return (
                           <div key={idx} className="flex items-start gap-3 my-2 pl-4 group">
                             <div className="mt-2 w-1.5 h-1.5 rounded-full bg-primary/60 group-hover:bg-primary transition-colors shrink-0" />
-                            <p className="text-foreground/90 leading-snug m-0 flex-1">{processedLine}</p>
+                            <div className="text-foreground/90 leading-snug m-0 flex-1">{processedLine}</div>
                           </div>
                         )
                       }
@@ -637,34 +692,61 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                       }
                       
                       return (
-                        <p key={idx} className="text-foreground/80 leading-relaxed my-1">
+                        <div key={idx} className="text-foreground/80 leading-relaxed my-1">
                           {processedLine}
-                        </p>
+                        </div>
                       )
                     })
                   })()}
                 </div>
 
-                {/* Exercise Links */}
-                {selectedDayData?.links.length > 0 && (
-                  <div className="pt-8 border-t border-border/50">
-                    <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Videos de Referencia</h4>
-                    <div className="grid sm:grid-cols-2 gap-3">
-                      {selectedDayData.links.map((link: any, idx: number) => (
-                        <a
-                          key={idx}
-                          href={link.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-between p-3 bg-secondary/20 hover:bg-secondary/40 rounded-xl transition-colors group/link"
-                        >
-                          <span className="text-sm font-medium">{link.titulo}</span>
-                          <ExternalLink className="w-4 h-4 text-muted-foreground group-hover/link:text-primary transition-colors" />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {selectedDayData.links && selectedDayData.links.length > 0 && (
+              <div className="mt-8 space-y-4">
+                <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground border-b border-border/50 pb-2 flex items-center gap-2">
+                  <ExternalLink className="w-4 h-4" />
+                  Links y Videos
+                </h4>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {selectedDayData.links.map((link: any) => {
+                    const ytMatch = link.url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?\n]+)/)
+                    const ytId = ytMatch ? ytMatch[1] : null
+                    
+                    if (ytId) {
+                      return (
+                        <div key={link.id} className="group flex flex-col overflow-hidden bg-card/50 hover:bg-card border border-border/50 hover:border-primary/50 rounded-xl transition-all">
+                          <div className="relative w-full aspect-video bg-black">
+                            <iframe 
+                              src={`https://www.youtube.com/embed/${ytId}`} 
+                              title={link.titulo} 
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                              allowFullScreen 
+                              className="w-full h-full border-0"
+                            ></iframe>
+                          </div>
+                          <div className="p-4">
+                            <span className="font-bold text-foreground group-hover:text-primary transition-colors text-sm block mb-1">{link.titulo}</span>
+                            <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline truncate block">Abrir en YouTube</a>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <a
+                        key={link.id}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group flex flex-col p-4 bg-card/50 hover:bg-card border border-border/50 hover:border-primary/50 rounded-xl transition-all"
+                      >
+                        <span className="font-bold text-foreground group-hover:text-primary transition-colors text-sm mb-1">{link.titulo}</span>
+                        <span className="text-xs text-muted-foreground truncate">{link.url}</span>
+                      </a>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
               </div>
             )}
           </CardContent>
