@@ -39,8 +39,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="bg-background">
-      <body className="font-sans antialiased">
+    <html lang="es" className="bg-background" suppressHydrationWarning>
+      <body className="font-sans antialiased" suppressHydrationWarning>
         <AuthProvider>{children}</AuthProvider>
         <Toaster theme="dark" position="bottom-right" richColors closeButton />
         <PwaInstallPrompt />

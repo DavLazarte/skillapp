@@ -408,15 +408,15 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                       const searchLine = normalizeForSearch(line)
                       
                       // 1. Detect Context Shift
-                      if (searchLine.includes("clean  jerk") || searchLine.includes("clean and jerk") || searchLine.includes("clean y jerk") || searchLine.includes("cj")) {
+                      if (searchLine.includes(normalizeForSearch("clean & jerk")) || searchLine.includes(normalizeForSearch("clean and jerk")) || searchLine.includes(normalizeForSearch("clean y jerk")) || searchLine.includes(normalizeForSearch("c&j"))) {
                         activeRMContext = "Clean & Jerk"
-                      } else if (searchLine.includes("jerk") && !searchLine.includes("clean")) {
+                      } else if (searchLine.includes(normalizeForSearch("jerk")) && !searchLine.includes(normalizeForSearch("clean"))) {
                         activeRMContext = "Jerk"
-                      } else if (searchLine.includes("clean") && !searchLine.includes("jerk")) {
+                      } else if (searchLine.includes(normalizeForSearch("clean")) && !searchLine.includes(normalizeForSearch("jerk"))) {
                         activeRMContext = "Clean"
-                      } else if (searchLine.includes("strict press") || searchLine.includes("press estricto")) {
+                      } else if (searchLine.includes(normalizeForSearch("strict press")) || searchLine.includes(normalizeForSearch("press estricto"))) {
                         activeRMContext = "Press Estricto"
-                      } else if (searchLine.includes("ohs") || searchLine.includes("over head squat") || searchLine.includes("overhead squat") || searchLine.includes("snatch")) {
+                      } else if (searchLine.includes(normalizeForSearch("ohs")) || searchLine.includes(normalizeForSearch("over head squat")) || searchLine.includes(normalizeForSearch("overhead squat")) || searchLine.includes(normalizeForSearch("snatch"))) {
                         activeRMContext = "Snatch"
                       } else {
                         for (const ej of allSearchExercises) {
@@ -465,7 +465,7 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                       let processedLine: React.ReactNode = lineContent
                       const lowerLineContent = lineContent.toLowerCase()
 
-                      const rangeRegexMatch = lineContent.match(/(\d+)\s*(?:a|al|-)\s+(\d+)%/i)
+                      const rangeRegexMatch = lineContent.match(/(\d+)%?\s*(?:a|al|-)\s+(\d+)%/i)
                       // Prevents "2x5 - 50%" from being parsed as a range "5 - 50"
                       const isInvalidRange = lineContent.match(/\b\d+x\s*\d+\s*-\s*\d+%/i)
                       const rangeMatch = isInvalidRange ? null : rangeRegexMatch
@@ -523,75 +523,81 @@ export function WorkoutDashboard({ alumno, semanas, asistencias, comentarios, co
                             </span>
                           )
                         }
-                      } else if (percentMatch && activeRMContext) {
-                        const isModifier = percentMatch[1].startsWith("+") || percentMatch[1].startsWith("-")
-                        const percent = parseInt(percentMatch[1])
-                        const maxRM = getRM(activeRMContext)
-                        if (maxRM) {
-                          const isTime = activeRMContext === "5km" || 
-                                         activeRMContext === "1k" || 
-                                         alumno.rms.some((r: any) => 
-                                           cleanRMName(r.ejercicio) === activeRMContext && r.ejercicio.includes(" (Tiempo)")
-                                         )
-                          const isCap = isExerciseCapacidad(activeRMContext)
-                          
-                          let calculatedWeight = 0
-                          
-                          if (isTime) {
-                            // Running/Cardio pace logic
-                            let baseTime = maxRM
-                            
-                            // Extract distance if specified e.g. "4x500 m" or "1000m"
-                            const distMatch = lineContent.match(/(?:x|\b)(\d+)\s*m\b/i) || lineContent.match(/\b(\d+)\s*m\b/i)
-                            if (distMatch) {
-                              const distanceMeters = parseInt(distMatch[1])
-                              const baseDist = activeRMContext === "5km" ? 5000 : 1000
-                              baseTime = maxRM * (distanceMeters / baseDist)
-                            }
-                            
-                            // Modifiers: +2% means 2% faster (subtract from time), -2% means slower
-                            if (isModifier) {
-                              calculatedWeight = Math.round(baseTime * (1 - (percent / 100)))
-                            } else {
-                              calculatedWeight = Math.round((baseTime * percent) / 100)
-                            }
-                          } else {
-                            // Strength / Capacity logic
-                            calculatedWeight = isCap
-                              ? Math.round((maxRM * percent) / 100)
-                              : Math.round(((maxRM * percent) / 100) * 10) / 10
-                          }
-                          
-                          const formatValue = (val: number) => {
-                            if (isTime) return `${formatTime(val)} min`
-                            if (isCap) return `${val} reps`
-                            return `${val} kg`
-                          }
+                      } else if (lineContent.match(/([+-]?\d+)%/)) {
+                        const maxRM = activeRMContext ? getRM(activeRMContext) : null
+                        const parts = lineContent.split(/([+-]?\d+%)/)
+                        
+                        processedLine = (
+                          <span>
+                            {parts.map((part, i) => {
+                              if (/^[+-]?\d+%$/.test(part)) {
+                                if (!activeRMContext) {
+                                  return <span key={i}>{part}</span>
+                                }
+                                
+                                if (!maxRM) {
+                                  return (
+                                    <span key={i}>
+                                      {part}
+                                      <span className="text-muted-foreground/60 italic mx-2 text-xs">
+                                        [ Sin RM de {activeRMContext} ]
+                                      </span>
+                                    </span>
+                                  )
+                                }
+                                
+                                const isModifier = part.startsWith("+") || part.startsWith("-")
+                                const percent = parseInt(part)
+                                const isTime = activeRMContext === "5km" || 
+                                               activeRMContext === "1k" || 
+                                               alumno.rms.some((r: any) => 
+                                                 cleanRMName(r.ejercicio) === activeRMContext && r.ejercicio.includes(" (Tiempo)")
+                                               )
+                                const isCap = isExerciseCapacidad(activeRMContext)
+                                
+                                let calculatedWeight = 0
+                                
+                                if (isTime) {
+                                  let baseTime = maxRM
+                                  const distMatch = lineContent.match(/(?:x|\b)(\d+)\s*m\b/i) || lineContent.match(/\b(\d+)\s*m\b/i)
+                                  if (distMatch) {
+                                    const distanceMeters = parseInt(distMatch[1])
+                                    const baseDist = activeRMContext === "5km" ? 5000 : 1000
+                                    baseTime = maxRM * (distanceMeters / baseDist)
+                                  }
+                                  
+                                  if (isModifier) {
+                                    calculatedWeight = Math.round(baseTime * (1 - (percent / 100)))
+                                  } else {
+                                    calculatedWeight = Math.round((baseTime * percent) / 100)
+                                  }
+                                } else {
+                                  calculatedWeight = isCap
+                                    ? Math.round((maxRM * percent) / 100)
+                                    : Math.round(((maxRM * percent) / 100) * 10) / 10
+                                }
+                                
+                                const formatValue = (val: number) => {
+                                  if (isTime) return `${formatTime(val)} min`
+                                  if (isCap) return `${val} reps`
+                                  return `${val} kg`
+                                }
 
-                          const parts = lineContent.split(percentMatch[0])
-                          const beforeText = parts[0].replace(/\s*-\s*$/, ' ')
-                          processedLine = (
-                            <span>
-                              {renderInlineMarkdown(beforeText)}
-                              <span className="text-primary font-bold mx-1 bg-primary/10 px-2 py-0.5 rounded text-xs">
-                                {isTime ? `[ Obj: ${formatValue(calculatedWeight)} ]` : `con ${formatValue(calculatedWeight)}`}
-                              </span>
-                              {renderInlineMarkdown(parts[1] || "")}
-                            </span>
-                          )
-                        } else {
-                          const parts = lineContent.split(percentMatch[0])
-                          processedLine = (
-                            <span>
-                              {renderInlineMarkdown(parts[0])}
-                              {percentMatch[0]}
-                              <span className="text-muted-foreground/60 italic mx-2 text-xs">
-                                [ Sin RM de {activeRMContext} ]
-                              </span>
-                              {renderInlineMarkdown(parts[1] || "")}
-                            </span>
-                          )
-                        }
+                                return (
+                                  <span key={i} className="text-primary font-bold mx-1 bg-primary/10 px-2 py-0.5 rounded text-xs">
+                                    {isTime ? `[ Obj: ${formatValue(calculatedWeight)} ]` : `con ${formatValue(calculatedWeight)}`}
+                                  </span>
+                                )
+                              } else {
+                                let textToRender = part
+                                if (i < parts.length - 1 && /^[+-]?\d+%$/.test(parts[i+1])) {
+                                  textToRender = textToRender.replace(/\s*-\s*$/, ' ')
+                                }
+                                return <span key={i}>{renderInlineMarkdown(textToRender)}</span>
+                              }
+                            })}
+                          </span>
+                        )
                       } else if (rpMatch) {
                         const distanceMeters = parseInt(rpMatch[1])
                         const rpeValue = parseInt(rpMatch[2])
